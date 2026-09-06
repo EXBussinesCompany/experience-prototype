@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f4efe6">
+  <title>Experience — кликабельный прототип</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <main class="prototype-shell">
+    <aside class="prototype-notes" aria-label="Навигация по прототипу">
+      <div class="prototype-brand">
+        <span class="prototype-mark" aria-hidden="true"></span>
+        <div>
+          <strong>Experience</strong>
+          <span>directional prototype · v01</span>
+        </div>
+      </div>
+
+      <div class="prototype-copy">
+        <p class="eyebrow">Что проверяем</p>
+        <h1>От состояния к реальной встрече — без свайпов.</h1>
+        <p>Пройдите путь последовательно или откройте ключевой момент напрямую.</p>
+      </div>
+
+      <nav class="journey-nav" aria-label="Экраны сценария">
+        <button data-jump="welcome"><span>01</span> Первое знакомство</button>
+        <button data-jump="birth"><span>02</span> Профиль и карта</button>
+        <button data-jump="personalityIntro"><span>03</span> Стиль общения</button>
+        <button data-jump="home"><span>04</span> Главная</button>
+        <button data-jump="mood"><span>05</span> Быстрый check-in</button>
+        <button data-jump="recommendations"><span>06</span> Подбор опыта</button>
+        <button data-jump="radar"><span>07</span> Live Radar</button>
+        <button data-jump="matched"><span>08</span> Встреча подтверждена</button>
+        <button data-jump="meeting"><span>09</span> Во время встречи</button>
+        <button data-jump="feedback"><span>10</span> После опыта</button>
+      </nav>
+
+      <p class="prototype-hint">Макет не хранит введённые данные. Координаты людей намеренно приблизительные.</p>
+    </aside>
+
+    <section class="device-stage" aria-label="Мобильное приложение Experience">
+      <div class="ambient-orbit ambient-orbit--one" aria-hidden="true"></div>
+      <div class="ambient-orbit ambient-orbit--two" aria-hidden="true"></div>
+      <div class="phone">
+        <div class="phone-speaker" aria-hidden="true"></div>
+        <div class="status-bar" aria-hidden="true">
+          <span>9:41</span>
+          <span class="status-icons">● ◒ ▰</span>
+        </div>
+        <div id="app" class="app" aria-live="polite"></div>
+        <div class="home-indicator" aria-hidden="true"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
