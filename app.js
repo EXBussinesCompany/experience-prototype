@@ -1,623 +1,303 @@
+'use strict';
+const M = window.ExperienceModel;
 const app = document.querySelector('#app');
 const toast = document.querySelector('#toast');
-
-const state = {
-  screen: new URLSearchParams(window.location.search).get('screen') || 'welcome',
-  history: [],
-  quizStep: 0,
-  mood: 'tired',
-  need: 'heard',
-  format: 'one',
-  boundaries: ['public', 'platonic'],
-  selectedExperience: 'walk',
-  selectedRadarPerson: 'marta',
-  feedback: {},
-  live: true,
-  messages: [
-    { mine: false, text: 'Привет! Мне нравится идея прогулки. Встречаемся у главного входа?', time: '18:42' },
-    { mine: true, text: 'Да, отлично. Я буду в зелёной куртке 🙂', time: '18:43' }
-  ]
-};
-
-const people = {
-  marta: {
-    name: 'Марта', age: 28, distance: '300–500 м',
-    image: 'https://i.pravatar.cc/240?img=47',
-    intent: 'Кофе и спокойный разговор',
-    note: 'Открыта к общению ещё 45 минут',
-    astro: 'Луна в Тельце создаёт спокойный темп, а ваши Меркурии поддерживают прямой разговор.'
-  },
-  denis: {
-    name: 'Денис', age: 31, distance: 'до 1 км',
-    image: 'https://i.pravatar.cc/240?img=12',
-    intent: 'Прогулка после работы',
-    note: 'Только дружеское общение',
-    astro: 'Вы оба цените конкретику, но Денису может понадобиться больше времени, чтобы раскрыться.'
-  },
-  lena: {
-    name: 'Лена', age: 26, distance: 'в этой зоне',
-    image: 'https://i.pravatar.cc/240?img=44',
-    intent: 'Компания на концерт',
-    note: 'Сейчас в Live Zone Praga Hall',
-    astro: 'У вас похожий эмоциональный ритм и разный способ проявлять инициативу — хороший баланс для события.'
-  }
-};
-
-const quiz = [
-  { title: 'Как тебе проще знакомиться?', left: 'Сначала присмотреться', right: 'Сразу включиться' },
-  { title: 'Какой разговор комфортнее?', left: 'Мягкий и бережный', right: 'Прямой и честный' },
-  { title: 'Что больше заряжает?', left: 'Глубокий разговор вдвоём', right: 'Живая компания' },
-  { title: 'Как ты относишься к планам?', left: 'Люблю знать заранее', right: 'Легко решаю спонтанно' }
-];
-
-function icon(name) {
-  const icons = { back: '←', close: '×', more: '•••', moon: '◔', arrow: '›' };
-  return icons[name] || name;
-}
-
-function img(person, className = 'avatar') {
-  return `<img class="${className}" src="${person.image}" alt="${person.name}">`;
-}
-
-function topbar(title = '', options = {}) {
-  const left = options.back === false ? '<span></span>' : `<button class="back" data-action="back" aria-label="Назад">${icon('back')}</button>`;
-  const right = options.right || '<span></span>';
-  return `<header class="topbar">${left}<strong>${title}</strong>${right}</header>`;
-}
-
+const STORAGE_KEY = 'experience-prototype-v2';
+let state = M.initialState();
+try {
+  const saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY));
+  if (saved && Array.isArray(saved.bookings) && Array.isArray(saved.excludedVenues) && Array.isArray(saved.blockedPeople)) state = { ...state, ...saved };
+} catch { /* A fresh demo works without session storage too. */ }
+let screen = new URLSearchParams(location.search).get('screen') || 'welcome';
+let history = [], selected = state.selected || 'coffee', error = '', reportTarget = 'venue', reportReason = '', chatDraft = '', questionIndex = 0;
+const aliases = { radar:'lastMinute', radarProfile:'experienceDetail', zone:'lastMinute', inviteBuilder:'experienceDetail', offerSent:'reservation', signin:'onboarding', otp:'onboarding', personalityIntro:'mood', personalityQuiz:'mood', profileReady:'home', natalReady:'birth' };
+const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const currentEvent = () => M.eventById(selected) || M.events[0];
+const booking = () => state.bookings.find(b => b.eventId === selected);
+const language = e => e.language === 'pl' ? 'Польский' : 'Английский';
+const company = e => e.company === 'small' ? '4 человека' : 'Вдвоём';
+const price = e => e.cost === 0 ? 'Без расходов на месте' : `До ${e.cost} zł на месте`;
+function save() { state.selected = selected; try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* In-memory fallback. */ } }
+function button(label, action, value = '', style = 'primary', extra = '') { return `<button class="${style}" data-action="${action}" data-value="${esc(value)}" ${extra}>${label}</button>`; }
+function link(label, target, style = 'secondary') { return button(label,'go',target,style); }
+function heading(kicker,title,body = '') { return `<p class="section-kicker">${kicker}</p><h1 class="display">${title}</h1>${body ? `<p class="lead">${body}</p>` : ''}`; }
+function note(title,body) { return `<div class="guarantee"><strong>${title}</strong><p>${body}</p></div>`; }
+function avatar(id) { const p = M.people[id]; return `<span class="initial-avatar ${p.color}" aria-label="${p.name}">${p.name[0]}</span>`; }
+function groupArt(e,large = false) { return `<div class="table-art ${e.tone} ${large ? 'table-art--large' : ''}" aria-hidden="true"><div class="table-center">${M.venues[e.venue].symbol}</div>${Array.from({length:e.company === 'small' ? 4 : 2},(_,i) => `<span class="table-seat seat-${i}"></span>`).join('')}</div>`; }
 function bottomNav(active) {
-  const items = [
-    ['home', '⌂', 'Сегодня'],
-    ['radar', '⌖', 'Рядом'],
-    ['plans', '◷', 'Планы'],
-    ['profile', '○', 'Профиль']
-  ];
-  return `<nav class="bottom-nav" aria-label="Основная навигация">${items.map(([screen, symbol, label]) => `
-    <button class="${active === screen ? 'is-active' : ''}" data-jump="${screen}">
-      <span>${symbol}</span><span>${label}</span>
-    </button>`).join('')}</nav>`;
+  return `<nav class="bottom-nav" aria-label="Основная навигация">${[['home','⌂','Сегодня'],['lastMinute','◷','Скоро'],['plans','▤','Планы'],['profile','○','Профиль']].map(([id,symbol,label]) => `<button data-jump="${id}" ${active === id ? 'aria-current="page"' : ''} class="${active === id ? 'is-active' : ''}"><span>${symbol}</span><span>${label}</span></button>`).join('')}</nav>`;
 }
-
+function frame(title,content,{nav,back = true,step,paper = false} = {}) {
+  return `<section class="screen ${nav ? 'screen--with-nav' : ''} ${paper ? 'screen--ready' : ''}"><div class="demo-label">МАКЕТ · БЕЗ РЕАЛЬНЫХ БРОНЕЙ И СООБЩЕНИЙ</div><header class="topbar">${back ? button('←','back','','back','aria-label="Назад"') : '<span class="brand-lockup"><span class="brand-dot"></span>Experience</span>'}<strong>${title}</strong>${button('⌂','go','home','icon-button','aria-label="На главную"')}</header>${step ? `<div class="progress"><span style="width:${step * 25}%"></span></div>` : ''}${error ? `<p class="form-error" role="alert">${esc(error)}</p>` : ''}${content}${nav ? bottomNav(nav) : ''}</section>`;
+}
+function choice(key,value,title,description = '',symbol = '○',selection = state[key]) {
+  const checked = Array.isArray(selection) ? selection.includes(value) : selection === value;
+  return `<button class="wide-choice ${checked ? 'is-selected' : ''}" data-action="choose" data-key="${key}" data-value="${esc(value)}" aria-pressed="${checked}"><span>${symbol}</span><span><strong>${title}</strong>${description ? `<small>${description}</small>` : ''}</span><span class="check">✓</span></button>`;
+}
+function eventCard(e,broad = false) {
+  return `<button class="experience-card" data-action="select-event" data-value="${e.id}"><div class="event-banner ${e.tone}">${groupArt(e)}<span class="event-label">${e.soon ? 'ОДНО СВОБОДНОЕ МЕСТО' : 'НЕБОЛЬШАЯ ВСТРЕЧА'}</span></div><div class="experience-body"><h3>${e.title}</h3><div class="experience-meta"><span>${e.time}</span><span>${company(e)}</span><span>${language(e)}</span></div><p>${price(e)} · ${e.walk}</p><div class="card-bottom"><span>${broad ? `Другой возрастной диапазон: ${e.age}` : M.intents[e.intent][0]}</span><span>↗</span></div></div></button>`;
+}
+function activeRequired(title) {
+  return frame('',`${heading('ПРИМЕР СЦЕНАРИЯ',title,'Экран открывается после подтверждения встречи. Можно загрузить демонстрационный пример или пройти подбор с начала.')}<div class="actions">${button('Загрузить пример встречи','demo-book',screen)}${link('Пройти подбор','mood')}</div><p class="fine-print">Пример: группа на польском, 30–45 лет, до 50 zł. Исключённые места и участники останутся исключёнными.</p>`);
+}
 function welcome() {
-  return `<section class="screen screen--welcome">
-    <div class="brand-lockup"><span class="brand-dot"></span>Experience</div>
-    <div class="hero-orbit" aria-hidden="true">
-      <div class="orbit-copy"><strong>Не ищи человека</strong><span>Скажи, что хочешь пережить</span></div>
-    </div>
-    <h1 class="display">Реальные встречи.<br>В нужный момент.</h1>
-    <p class="lead">Experience понимает твоё состояние и предлагает человека, формат, время и безопасное место.</p>
-    <div class="actions">
-      <button class="primary" data-action="next" data-target="signin">Начать</button>
-      <button class="secondary" data-action="show-toast" data-message="Демо-вход открыт — нажмите «Начать»">У меня уже есть профиль</button>
-    </div>
-    <p class="fine-print">18+ · Твоё местоположение никогда не показывается точно.</p>
-  </section>`;
+  return frame('',`<div class="welcome-art">${groupArt(M.events[0],true)}<span class="small-stamp">НЕ НУЖНО<br>ИДТИ ОДНОМУ</span></div>${heading('КОМПАНИЯ ДЛЯ ТВОЕГО ВЕЧЕРА','Хороший план.<br>Подходящие люди.','Кофе, прогулка или разговор со смыслом. Договоритесь об ожиданиях — и просто приходите.')}<div class="actions">${link('Посмотреть, как это работает','onboarding','primary')}${link('Сразу к встречам','home')}</div><p class="fine-print">18+ · Дружеское общение · Без свайпов<br>Все люди и места в макете вымышлены.</p>`,{back:false,paper:true});
 }
-
-function signin() {
-  return `<section class="screen">
-    ${topbar('')}
-    <p class="section-kicker">ШАГ 1 ИЗ 4</p>
-    <h1 class="display">Начнём с номера</h1>
-    <p class="lead">Он нужен для входа и безопасности сообщества.</p>
-    <div class="field">
-      <label for="phone">Номер телефона</label>
-      <input id="phone" inputmode="tel" value="+48 512 345 678">
-    </div>
-    <div class="actions actions--bottom">
-      <button class="primary" data-action="next" data-target="otp">Получить код</button>
-    </div>
-  </section>`;
+function onboarding() {
+  return frame('',`${heading('НАЧНЁМ С ГЛАВНОГО','Твой город.<br>Твой комфорт.','Без номера телефона и длинного теста. Настроим демонстрационные встречи в Варшаве.')}<div class="city-lock"><span>⌂</span><div><strong>Варшава</strong><small>Один город для первого пилота</small></div></div><div class="field"><label for="language">Язык общения</label><select id="language" data-bind="language">${[['pl','Польский'],['en','Английский']].map(([id,name]) => `<option value="${id}" ${state.language === id ? 'selected' : ''}>${name}</option>`).join('')}</select></div><div class="field"><label for="age">Предпочтительная возрастная группа</label><select id="age" data-bind="age">${['18–29','30–45','45–60','60+'].map(x => `<option ${state.age === x ? 'selected' : ''}>${x}</option>`).join('')}</select></div><div class="field"><label for="budget">Бюджет на месте, на человека</label><select id="budget" data-bind="budget">${[[0,'Только бесплатные прогулки'],[50,'До 50 zł'],[100,'До 100 zł']].map(([n,t]) => `<option value="${n}" ${state.budget === n ? 'selected' : ''}>${t}</option>`).join('')}</select></div><p class="fine-print align-left">В макете плата за организацию — 0 zł. Кофе и еда показаны отдельно. Реальных платежей нет.</p><div class="actions">${link('Сохранить и посмотреть встречи','home','primary')}</div>`);
 }
-
-function otp() {
-  return `<section class="screen">
-    ${topbar('')}
-    <p class="section-kicker">ПОДТВЕРЖДЕНИЕ</p>
-    <h1 class="display">Код уже в пути</h1>
-    <p class="lead">Мы отправили четыре цифры на +48 512•••678.</p>
-    <div class="field-row" style="grid-template-columns:repeat(4,1fr);margin-top:28px">
-      ${['2','0','0','4'].map((n, i) => `<div class="field" style="margin-top:0"><input aria-label="Цифра ${i+1}" inputmode="numeric" value="${n}" style="text-align:center;font-size:22px"></div>`).join('')}
-    </div>
-    <div class="actions">
-      <button class="primary" data-action="next" data-target="birth">Продолжить</button>
-      <button class="text-button" data-action="show-toast" data-message="Новый код отправлен">Отправить ещё раз</button>
-    </div>
-  </section>`;
-}
-
-function birth() {
-  return `<section class="screen">
-    ${topbar('')}
-    <div class="progress"><span style="width:38%"></span></div>
-    <p class="section-kicker">ТВОЯ КАРТА</p>
-    <h1 class="display">Когда и где ты родился?</h1>
-    <p class="lead">Используем карту как один из слоёв совместимости — не как диагноз или приговор.</p>
-    <div class="field"><label for="birthdate">Дата рождения</label><input id="birthdate" value="12.08.1994"></div>
-    <div class="field-row">
-      <div class="field"><label for="birthtime">Время</label><input id="birthtime" value="18:30"></div>
-      <div class="field"><label for="timeAccuracy">Точность</label><input id="timeAccuracy" value="Точное"></div>
-    </div>
-    <div class="field"><label for="birthplace">Место рождения</label><input id="birthplace" value="Варшава, Польша"></div>
-    <div class="actions">
-      <button class="primary" data-action="next" data-target="natalReady">Построить карту</button>
-      <button class="text-button" data-action="show-toast" data-message="Можно добавить примерное время позже">Не знаю время рождения</button>
-    </div>
-  </section>`;
-}
-
-function natalReady() {
-  return `<section class="screen screen--dark">
-    ${topbar('', { right: '<span></span>' })}
-    <p class="section-kicker" style="color:#f5a78e">ТВОЯ ОСНОВА</p>
-    <h1 class="display">Карта готова</h1>
-    <div class="natal-mini"><strong>Солнце<br>в Скорпионе</strong></div>
-    <div class="profile-triad">
-      <div><small>Луна</small><strong>Телец</strong></div>
-      <div><small>Асцендент</small><strong>Скорпион</strong></div>
-      <div><small>Венера</small><strong>Весы</strong></div>
-    </div>
-    <p class="lead">Глубина и внимательность к деталям сочетаются с потребностью в спокойном, надёжном контакте.</p>
-    <div class="actions"><button class="primary" data-action="next" data-target="personalityIntro">Настроить стиль общения</button></div>
-  </section>`;
-}
-
-function personalityIntro() {
-  return `<section class="screen">
-    ${topbar('')}
-    <div class="progress"><span style="width:62%"></span></div>
-    <p class="section-kicker">СТИЛЬ ОБЩЕНИЯ · 2 МИНУТЫ</p>
-    <h1 class="display">Чтобы подобрать не просто похожего человека</h1>
-    <p class="lead">Несколько вопросов помогут понять комфортный темп, прямоту и количество контакта. Это не медицинский тест.</p>
-    <div class="choice-grid">
-      <div class="choice"><span class="choice-icon">◌</span><strong>Без ярлыков</strong><small>Покажем склонности, а не тип личности.</small></div>
-      <div class="choice"><span class="choice-icon">↻</span><strong>Можно менять</strong><small>Профиль обучается после реальных опытов.</small></div>
-    </div>
-    <div class="actions"><button class="primary" data-action="start-quiz">Ответить на 4 вопроса</button></div>
-  </section>`;
-}
-
-function personalityQuiz() {
-  const q = quiz[state.quizStep];
-  const width = 62 + ((state.quizStep + 1) / quiz.length) * 23;
-  return `<section class="screen">
-    ${topbar(`${state.quizStep + 1} / ${quiz.length}`)}
-    <div class="progress"><span style="width:${width}%"></span></div>
-    <p class="section-kicker">СТИЛЬ ОБЩЕНИЯ</p>
-    <h1 class="display display--small">${q.title}</h1>
-    <p class="lead">Выбери точку, которая ближе тебе большую часть времени.</p>
-    <div class="scale">
-      <div class="scale-head"><span>${q.left}</span><span style="text-align:right">${q.right}</span></div>
-      <div class="scale-track">
-        ${[1,2,3,4,5].map(n => `<button class="scale-dot ${n === 3 ? 'is-selected' : ''}" data-action="quiz-answer" data-value="${n}" aria-label="Вариант ${n} из 5"></button>`).join('')}
-      </div>
-    </div>
-    <div class="actions actions--bottom"><button class="primary" data-action="quiz-next">${state.quizStep === quiz.length - 1 ? 'Посмотреть профиль' : 'Дальше'}</button></div>
-  </section>`;
-}
-
-function profileReady() {
-  return `<section class="screen screen--ready">
-    ${topbar('', { back: false })}
-    <div class="ready-seal"></div>
-    <p class="section-kicker" style="text-align:center">ПРОФИЛЬ ГОТОВ</p>
-    <h1 class="display" style="text-align:center">Спокойная глубина</h1>
-    <p class="lead" style="text-align:center">Тебе легче раскрыться один на один, когда разговор честный, но без давления.</p>
-    <div class="reason-list">
-      <div class="reason"><span class="reason-icon">◎</span><div><strong>Оптимальный формат</strong><p>Прогулка или кофе на 30–60 минут.</p></div></div>
-      <div class="reason"><span class="reason-icon">↔</span><div><strong>Комфортный партнёр</strong><p>Тёплый, инициативный, уважающий паузы.</p></div></div>
-    </div>
-    <div class="actions"><button class="primary" data-action="next" data-target="home">Перейти в Experience</button></div>
-  </section>`;
-}
-
 function home() {
-  return `<section class="screen screen--with-nav">
-    <div class="home-greeting">
-      <div><p>Воскресенье, 7 сентября</p><strong>Добрый вечер, Алексей</strong></div>
-      ${img({ name: 'Алексей', image: 'https://i.pravatar.cc/200?img=11' })}
-    </div>
-    <div class="today-panel">
-      <div class="moon-row"><span>Луна в Тельце · спокойный ритм</span><span class="moon-glyph">◔</span></div>
-      <h2>Что тебе нужно сейчас?</h2>
-      <p>Ответ займёт меньше минуты. Мы предложим не людей, а готовые варианты встречи.</p>
-      <div class="actions"><button class="primary" data-action="next" data-target="mood">Пройти check-in</button></div>
-    </div>
-    <div class="home-actions">
-      <button class="action-tile" data-action="next" data-target="radar"><span class="tile-icon">⌖</span><span><strong>Кто открыт рядом</strong><small>7 человек · 2 Live Zone</small></span><span class="arrow">›</span></button>
-      <button class="action-tile" data-action="next" data-target="plans"><span class="tile-icon">◷</span><span><strong>Ближайший план</strong><small>Прогулка · сегодня в 19:00</small></span><span class="arrow">›</span></button>
-    </div>
-    ${bottomNav('home')}
-  </section>`;
+  const next = state.bookings.find(b => ['confirmed','arrived','late'].includes(b.status));
+  return frame('',`<p class="section-kicker">ВАРШАВА · ТВОЁ ВРЕМЯ ДЛЯ ЛЮДЕЙ</p><div class="today-panel"><span class="section-kicker">КАКОГО ОБЩЕНИЯ ХОЧЕТСЯ?</span><h1>Не каждый вечер<br>должен быть одинаковым.</h1><p>Сначала — твои ожидания. Затем — встреча, на которую хочется прийти.</p><div class="actions">${link('Подобрать мой вечер','mood','primary')}</div></div>${next ? `<button class="upcoming-banner" data-action="open-booking" data-value="${next.eventId}"><span>ТВОЙ БЛИЖАЙШИЙ ПЛАН</span><strong>${M.eventById(next.eventId).title}</strong><small>${M.eventById(next.eventId).time} →</small></button>` : ''}<h2 class="list-title">Можно проще</h2><div class="home-actions"><button class="action-tile" data-jump="lastMinute"><span class="tile-icon">◷</span><span><strong>Есть свободный час?</strong><small>Демо-места на встречи через 40–55 минут</small></span><span>›</span></button><button class="action-tile" data-jump="plans"><span class="tile-icon">◉</span><span><strong>Собраться снова</strong><small>Следующий план с теми, кто понравился</small></span><span>›</span></button></div>${state.excludedVenues.length ? note('Твои предпочтения учтены',`${state.excludedVenues.length} мест исключено из подбора. Можно изменить это в профиле.`) : note('Здесь можно передумать','Пропуск предложения не влияет на приоритет. Подтверждённую встречу можно отменить явно и предупредить группу.')}<p class="fine-print">Выборы сохраняются только в этой вкладке. Реального подбора людей пока нет.</p>`,{nav:'home',back:false});
 }
-
 function mood() {
-  const moods = [
-    ['tired','😔','28%','72%','Тяжело и мало энергии'],
-    ['restless','😣','74%','70%','Напряжённо, хочется движения'],
-    ['calm','😌','30%','28%','Спокойно и мягко'],
-    ['bright','🙂','74%','27%','Хорошо и много энергии']
-  ];
-  const chosen = moods.find(m => m[0] === state.mood);
-  return `<section class="screen">
-    ${topbar('Быстрый check-in')}
-    <div class="progress"><span style="width:25%"></span></div>
-    <h1 class="display display--small">Как ты себя чувствуешь?</h1>
-    <p class="lead">Выбери ближайшее состояние. Здесь нет правильного ответа.</p>
-    <div class="mood-map">
-      <span class="mood-label mood-label--top">больше энергии</span><span class="mood-label mood-label--bottom">меньше энергии</span>
-      <span class="mood-label mood-label--left">тяжелее</span><span class="mood-label mood-label--right">приятнее</span>
-      ${moods.map(m => `<button class="mood-point ${state.mood === m[0] ? 'is-selected' : ''}" style="left:${m[2]};top:${m[3]}" data-action="select-mood" data-value="${m[0]}" aria-label="${m[4]}">${m[1]}</button>`).join('')}
-    </div>
-    <div class="selected-note">Сейчас ближе: <strong>${chosen[4]}</strong>. Это состояние нигде публично не показывается.</div>
-    <div class="actions"><button class="primary" data-action="next" data-target="need">Дальше</button></div>
-  </section>`;
+  return frame('Перед встречей',`${heading('1 / 4 · ТОЛЬКО ДЛЯ ТЕБЯ','Сколько сил<br>на общение?','Состояние не увидят другие участники. Оно не определяет, какие темы тебе нужны.')}<div class="energy-art"><span>◌</span><span>◑</span><span>●</span></div>${choice('energy','low','Хочется бережного темпа','Можно присмотреться и не спешить','◌')}${choice('energy','medium','Есть силы на знакомство','Комфортно включаться постепенно','◑')}${choice('energy','high','Хочется больше общения','Готов активно включиться','●')}<div class="actions">${link('Что хочется получить?','need','primary')}</div>`,{step:1});
 }
-
 function need() {
-  const choices = [
-    ['heard','◡','Чтобы меня выслушали','Без советов и оценки'],
-    ['distract','✦','Отвлечься','Сменить обстановку'],
-    ['energy','↗','Получить энергию','Сделать что-то активное'],
-    ['celebrate','☀','Разделить хорошее','Праздновать не одному'],
-    ['advice','◇','Услышать взгляд со стороны','Спокойно разобраться'],
-    ['new','◌','Попробовать новое','Выйти из привычного']
-  ];
-  return `<section class="screen">
-    ${topbar('Быстрый check-in')}
-    <div class="progress"><span style="width:50%"></span></div>
-    <h1 class="display display--small">Что сейчас было бы полезно?</h1>
-    <div class="choice-grid">
-      ${choices.map(c => `<button class="choice ${state.need === c[0] ? 'is-selected' : ''}" data-action="select-need" data-value="${c[0]}"><span class="choice-icon">${c[1]}</span><strong>${c[2]}</strong><small>${c[3]}</small></button>`).join('')}
-    </div>
-    <div class="actions"><button class="primary" data-action="next" data-target="format">Дальше</button></div>
-  </section>`;
+  return frame('Намерение',`${heading('2 / 4 · СМЫСЛ ВСТРЕЧИ','Чего хочется<br>сегодня?','Это намерение увидят и примут остальные. Плохое настроение не обязывает говорить о проблемах.')}<div class="intent-list">${Object.entries(M.intents).map(([id,[title,desc,symbol]]) => choice('intent',id,title,desc,symbol)).join('')}</div>${state.intent === 'deep' ? `<label class="check-row"><input type="checkbox" data-bind="listen" ${state.listen ? 'checked' : ''}><span>Готов не только делиться, но и слушать. Понимаю, что это не психологическая помощь.</span></label>` : ''}<div class="actions">${button('Выбрать формат','continue-intent')}</div>`,{step:2});
 }
-
 function format() {
-  const choices = [
-    ['one','◉','Один на один','Спокойнее и глубже'],
-    ['small','◉◉','Небольшая группа','Трое или четверо'],
-    ['chat','⌁','Сначала переписка','Без обязательства встречаться'],
-    ['now','⌖','Готов встретиться сейчас','В пределах 30–60 минут']
-  ];
-  return `<section class="screen">
-    ${topbar('Быстрый check-in')}
-    <div class="progress"><span style="width:75%"></span></div>
-    <h1 class="display display--small">На какой контакт есть силы?</h1>
-    ${choices.map(c => `<button class="wide-choice ${state.format === c[0] ? 'is-selected' : ''}" data-action="select-format" data-value="${c[0]}"><span>${c[1]}</span><span><strong>${c[2]}</strong><small>${c[3]}</small></span><span class="check">✓</span></button>`).join('')}
-    <div class="actions"><button class="primary" data-action="next" data-target="boundaries">Дальше</button></div>
-  </section>`;
+  return frame('Формат',`${heading('3 / 4 · ТРИ ОТДЕЛЬНЫХ ВЫБОРА','Как будет<br>комфортнее?')}<h2 class="list-title">Сколько людей?</h2>${choice('company','small','Небольшая группа','Четверо, включая тебя','◉')}${choice('company','one','Один на один','Дружеский разговор вдвоём','○')}<h2 class="list-title">Когда?</h2>${choice('when','planned','Запланировать','Сегодня вечером или завтра','▤')}${choice('when','now','В ближайший час','Только подтверждённые свободные места','◷')}<h2 class="list-title">Как начать?</h2>${choice('start','inperson','Познакомиться на месте','Чат останется для организационных вопросов','↗')}${choice('start','chat','Сначала поздороваться в чате','Перед подтверждением можно посмотреть демо-чата','⌁')}<div class="actions">${link('Обозначить границы','boundaries','primary')}</div>`,{step:3});
 }
-
 function boundaries() {
-  const choices = [
-    ['public','⌂','Только публичное место','Показываем всегда'],
-    ['platonic','○','Только дружеское общение','Без романтического контекста'],
-    ['no-advice','≠','Без советов','Хочу, чтобы меня просто услышали'],
-    ['no-alcohol','⌁','Без алкоголя','Подберём подходящее место']
-  ];
-  return `<section class="screen">
-    ${topbar('Быстрый check-in')}
-    <div class="progress"><span style="width:100%"></span></div>
-    <h1 class="display display--small">Обозначь границы</h1>
-    <p class="lead">Другой человек увидит их до того, как примет предложение.</p>
-    ${choices.map(c => `<button class="wide-choice ${state.boundaries.includes(c[0]) ? 'is-selected' : ''}" data-action="toggle-boundary" data-value="${c[0]}"><span>${c[1]}</span><span><strong>${c[2]}</strong><small>${c[3]}</small></span><span class="check">✓</span></button>`).join('')}
-    <div class="actions"><button class="primary" data-action="next" data-target="recommendations">Подобрать опыт</button></div>
-    <p class="fine-print">Experience не оказывает психологическую помощь. В критической ситуации мы предложим обратиться к профильной поддержке.</p>
-  </section>`;
+  return frame('Договорённости',`${heading('4 / 4 · ОБЩИЕ ПРАВИЛА','Без неожиданных<br>ожиданий.','Публичное место и дружеский контекст обязательны в этом пилоте. Остальные границы выбери сам.')}<div class="fixed-rule"><span>✓</span><div><strong>Публичное место</strong><small>Только согласованная точка встречи</small></div><span>⌑</span></div><div class="fixed-rule"><span>✓</span><div><strong>Без романтических ожиданий</strong><small>Это не свидание</small></div><span>⌑</span></div>${choice('boundaries','noAdvice','Без непрошенных советов','Советы — только по запросу','≠')}${choice('boundaries','noAlcohol','Без алкоголя','Встреча не предполагает алкоголь','◒')}${note('Не меняем границы ради подбора','Если вариантов нет, предложим другой день или явное изменение предпочтений. Исключённых людей и места не возвращаем.')}<div class="actions">${link('Показать подходящие встречи','recommendations','primary')}</div>`,{step:4});
 }
-
+function filterSummary() { return `<div class="filter-summary"><span>${M.intents[state.intent][0]}</span><span>${state.company === 'small' ? 'Небольшая группа' : 'Один на один'}</span><span>${state.language === 'pl' ? 'PL' : 'EN'}</span><span>До ${state.budget} zł</span><span>${state.age}</span></div>`; }
 function recommendations() {
-  const marta = people.marta, denis = people.denis, lena = people.lena;
-  return `<section class="screen">
-    ${topbar('Твои варианты', { right: '<button class="text-button" data-jump="home">Закрыть</button>' })}
-    <p class="section-kicker">3 ПОДХОДЯЩИХ ОПЫТА</p>
-    <h1 class="display display--small">Сейчас лучше без шума и давления</h1>
-    <p class="lead">Мы учли состояние, границы, расстояние и стиль общения.</p>
-    <div class="suggestion-list">
-      <button class="experience-card experience-card--featured" data-action="select-experience" data-value="walk">
-        <div class="experience-visual"><div class="avatars">${img(marta)}${img({name:'Алексей',image:'https://i.pravatar.cc/200?img=11'})}</div><span class="match-score">лучший вариант</span></div>
-        <div class="experience-body"><h3>Прогулка и спокойный разговор</h3><div class="experience-meta"><span>Сегодня · 19:00</span><span>30–45 мин</span><span>12 мин пешком</span></div><p>Марта тоже хочет выговориться без советов. Встреча в людном парке.</p></div>
-      </button>
-      <button class="experience-card" data-action="select-experience" data-value="coffee">
-        <div class="experience-visual"><div class="avatars">${img(denis)}</div><span class="match-score">рядом сейчас</span></div>
-        <div class="experience-body"><h3>Кофе без спешки</h3><div class="experience-meta"><span>В течение часа</span><span>до 1 км</span></div><p>Короткая встреча один на один в партнёрской кофейне.</p></div>
-      </button>
-      <button class="experience-card" data-action="select-experience" data-value="concert">
-        <div class="experience-visual"><div class="avatars">${img(lena)}</div><span class="match-score">Live Zone</span></div>
-        <div class="experience-body"><h3>Послушать концерт вместе</h3><div class="experience-meta"><span>Praga Hall</span><span>Сегодня · 21:00</span></div><p>В зоне уже есть люди, открытые к дружескому общению.</p></div>
-      </button>
-    </div>
-  </section>`;
+  const list = M.recommend(state), broad = list.length ? [] : M.recommend(state,{broadenAge:true}).filter(e => e.age !== state.age);
+  return frame('Твои варианты',`${heading('ОЖИДАНИЯ ВАЖНЕЕ СЛУЧАЙНОСТИ',list.length ? 'Вот что<br>подходит.' : 'Пока без<br>точного совпадения.',list.length ? 'Согласованы намерение, компания, язык и бюджет. Выбирай сам опыт.' : 'Не будем показывать неподходящий вариант как идеальный.')}${filterSummary()}${state.energy === 'low' ? note('Можно включаться постепенно','Твоё состояние остаётся приватным. На встрече можно пропустить вопрос или просто послушать.') : ''}${state.preferences.quieter ? note('Учли пожелание: потише','Кофейни в подборе имеют тихий зал; прогулки проходят по спокойному маршруту.') : ''}<div class="suggestion-list">${list.map(e => eventCard(e)).join('')}</div>${!list.length ? `${broad.length ? `<h2 class="list-title">Только с твоего согласия</h2><p class="lead">Есть другой возрастной диапазон. Остальные условия остаются прежними.</p><div class="suggestion-list">${broad.map(e => eventCard(e,true)).join('')}</div>` : note('Сохраним твой запрос','В демо доступно ограниченное число групп. Можно встать в лист ожидания или изменить условия.')}<div class="actions">${button(state.waitlisted ? 'Убрать из листа ожидания' : 'Встать в лист ожидания','waitlist','','soft-button')}${link('Изменить язык, возраст или бюджет','onboarding')}</div>` : ''}<div class="actions">${link('Изменить намерение и формат','need')}</div>${state.waitlisted ? '<p class="fine-print">Запрос сохранён в этой вкладке. Уведомления не отправляются.</p>' : ''}`);
 }
-
 function experienceDetail() {
-  const marta = people.marta;
-  return `<section class="screen">
-    ${topbar('', { right: '<button class="icon-button" data-action="show-toast" data-message="Опыт сохранён" aria-label="Сохранить">♡</button>' })}
-    <div class="detail-hero">
-      <div class="detail-people">${img(marta)}${img({name:'Алексей',image:'https://i.pravatar.cc/200?img=11'})}</div>
-      <p class="section-kicker">ГОТОВЫЙ ОПЫТ</p>
-      <h1 class="display display--small">Прогулка и спокойный разговор</h1>
-      <div class="info-strip"><div><small>Когда</small><strong>Сегодня, 19:00</strong></div><div><small>Сколько</small><strong>30–45 минут</strong></div><div><small>Где</small><strong>Парк Скаришевский</strong></div></div>
-    </div>
-    <h2 class="list-title">Почему это может подойти</h2>
-    <div class="reason-list">
-      <div class="reason"><span class="reason-icon">◡</span><div><strong>Одинаковая потребность</strong><p>Вы оба хотите, чтобы вас услышали, без непрошенных советов.</p></div></div>
-      <div class="reason"><span class="reason-icon">↔</span><div><strong>Совместимый темп</strong><p>Марта легко начинает разговор, но уважает паузы.</p></div></div>
-      <div class="reason"><span class="reason-icon">☾</span><div><strong>Натальная динамика</strong><p>Луна в Тельце поддерживает спокойствие; общение лучше раскрывается в движении.</p></div></div>
-    </div>
-    <div class="guarantee"><strong>Experience Guarantee</strong><p>Если Марта не ответит или встреча сорвётся, предложим замену без потери приоритета.</p></div>
-    <div class="actions"><button class="primary" data-action="next" data-target="offerSent">Предложить Марте</button><button class="secondary" data-action="next" data-target="recommendations">Посмотреть другие варианты</button></div>
-  </section>`;
+  const e = currentEvent(), v = M.venues[e.venue];
+  return frame('',`<div class="detail-hero ${e.tone}">${groupArt(e)}<p class="section-kicker">${e.soon ? 'МОЖНО ПРИСОЕДИНИТЬСЯ СЕГОДНЯ' : 'СНАЧАЛА ОПЫТ, ПОТОМ ЗНАКОМСТВО'}</p><h1 class="display">${e.title}</h1><div class="info-strip"><div><small>Когда</small><strong>${e.time}</strong></div><div><small>Компания</small><strong>${company(e)}</strong></div><div><small>Время</small><strong>${e.duration}</strong></div></div></div><h2 class="list-title">О чём договоримся</h2><p class="body-copy">${e.agreement}</p><div class="rule-tags"><span>Публичное место</span><span>Без романтики</span><span>Без алкоголя</span></div><h2 class="list-title">Место и расходы</h2><div class="venue-line"><span>${v.symbol}</span><div><strong>${v.name}</strong><small>${v.note}</small></div></div><div class="cost-row"><span>Организация в демо</span><strong>0 zł</strong></div><div class="cost-row"><span>Еда / напитки отдельно</span><strong>${e.cost ? `до ${e.cost} zł` : '0 zł'}</strong></div><div class="cost-row"><span>Язык · возраст</span><strong>${language(e)} · ${e.age}</strong></div>${state.age !== e.age ? note('Отличается возрастной диапазон',`Ты выбрал ${state.age}. Здесь группа ${e.age}. Ничего не меняем без отдельного согласия.`) : ''}<p class="fine-print align-left">Вымышленные место и участники. Доступность и расходы показаны для проверки сценария, не для реального бронирования.</p><div class="actions">${button(state.age !== e.age ? `Рассмотреть группу ${e.age}` : state.start === 'chat' ? 'Поздороваться перед подтверждением' : e.soon ? 'Занять демо-место на 2 минуты' : 'Посмотреть состав и подтвердить','prepare-book')}${button('Больше не предлагать это место','exclude-venue',e.venue,'text-button')}${link('Другие варианты','recommendations')}</div>`);
 }
-
-function offerSent() {
-  return `<section class="screen offer-state">
-    ${topbar('', { right: '<button class="icon-button" data-jump="home" aria-label="Закрыть">×</button>' })}
-    <div class="signal">${img(people.marta)}</div>
-    <p class="section-kicker">ОФЕР ОТПРАВЛЕН</p>
-    <h1 class="display display--small">Ждём Марту</h1>
-    <p class="lead">Она видит твой профиль, формат, время и границы. Офер исчезнет через 12 минут.</p>
-    <div class="actions"><button class="primary" data-action="next" data-target="matched">Сымитировать принятие</button><button class="secondary" data-action="show-toast" data-message="Офер отменён без влияния на рейтинг">Отменить предложение</button></div>
-    <p class="fine-print">Игнорирование и отказ не влияют на рейтинг ни одного участника.</p>
-  </section>`;
+function reservation() {
+  const e = currentEvent();
+  return frame('Подтверждение',`${heading('ВСЕ ЗНАЮТ, ЗАЧЕМ ПРИХОДЯТ','Один стол.<br>Общие ожидания.',e.title)}${e.people.map(id => `<div class="person-row">${avatar(id)}<div><strong>${M.people[id].name}</strong><small>${M.people[id].note}</small></div><span class="person-check">✓</span></div>`).join('')}<p class="fine-print align-left">Демонстрационные участники согласны с форматом встречи.</p>${note('Общий договор',e.agreement)}${e.soon ? '<div class="hold-timer" role="status">Демо-место удерживается: <strong id="hold-countdown"></strong></div>' : ''}${state.start === 'chat' ? `<div class="preview-chat"><small>ПРИМЕР ГРУППОВОГО ЧАТА</small><p><strong>${M.people[e.people[0]].name}:</strong> Привет! Рада компании. Можно знакомиться без спешки 🙂</p><p>После подтверждения откроется поле для твоего сообщения.</p></div>` : ''}${state.age !== e.age ? note('Ты рассматриваешь другой диапазон',`${e.age} вместо ${state.age}. Согласие относится только к этой встрече.`) : ''}<label class="check-row"><input type="checkbox" id="agreement"><span>Мне подходит намерение, ${language(e).toLowerCase()} язык, состав и бюджет. Подтверждаю участие в демо.</span></label><div class="actions">${button('Подтвердить встречу','confirm-book')}${button('Пока не готов','release-hold','','secondary')}</div><p class="fine-print">Отказ от предложения не снижает приоритет. Подтверждение в макете никому не отправляется.</p>`);
 }
-
+function ticket(e) {
+  const v = M.venues[e.venue];
+  return `<div class="meeting-ticket"><div class="ticket-head"><p>${e.time.toUpperCase()}</p><h3>${e.title}</h3></div><div class="ticket-details"><div><small>Место</small><strong>${v.name}</strong></div><div><small>На месте</small><strong>${e.cost ? `До ${e.cost} zł` : 'Бесплатно'}</strong></div><div><small>Точка встречи</small><strong>${v.point}</strong></div><div><small>До закрытия</small><strong>${v.closes}</strong></div></div></div>`;
+}
 function matched() {
-  return `<section class="screen screen--ready">
-    ${topbar('', { back: false, right: '<button class="icon-button" data-jump="home" aria-label="Закрыть">×</button>' })}
-    <div class="matched-hero">
-      <div class="matched-avatars">${img({name:'Алексей',image:'https://i.pravatar.cc/200?img=11'})}${img(people.marta)}</div>
-      <p class="section-kicker">ПРЕДЛОЖЕНИЕ ПРИНЯТО</p>
-      <h1 class="display display--small">Встреча состоится</h1>
-      <p class="lead">Теперь открыты точное публичное место и временный чат.</p>
-    </div>
-    <div class="meeting-ticket">
-      <div class="ticket-head"><h3>Прогулка и разговор</h3><p>Ты и Марта</p></div>
-      <div class="ticket-details"><div><small>Сегодня</small><strong>19:00–19:45</strong></div><div><small>Точка встречи</small><strong>Главный вход в парк</strong></div></div>
-    </div>
-    <div class="actions"><button class="primary" data-action="next" data-target="chat">Открыть чат</button><button class="secondary" data-action="show-toast" data-message="Маршрут откроется в картах">Показать маршрут</button></div>
-  </section>`;
+  const b = booking(), e = currentEvent();
+  if (!b) return activeRequired('Встреча подтверждена');
+  if (b.status === 'cancelled') return cancelled();
+  if (['completed','missed','feedbackPending'].includes(b.status)) return summary();
+  return frame('',`${heading('ТЕПЕРЬ ЭТО ПЛАН',b.status === 'late' ? 'Группа знает,<br>что ты опаздываешь.' : b.status === 'arrived' ? 'Ты на месте.<br>Можно знакомиться.' : 'Встреча<br>подтверждена.','Место, время и договорённости теперь в «Моих планах».')}${ticket(e)}<div class="people-strip">${e.people.map(avatar).join('')}<span>и ты · ${company(e)}</span></div><div class="actions">${link(e.company === 'small' ? 'Открыть групповой чат' : 'Открыть чат','chat','primary')}${button('Я на месте','arrive','','soft-button')}${button('Опаздываю на 10 минут','late','','secondary')}${link('Отменить участие','cancel','text-button')}</div><p class="fine-print">Это демо: группа не получает реальные уведомления.</p>`);
 }
-
 function chat() {
-  return `<section class="screen">
-    ${topbar('Марта', { right: '<button class="icon-button" data-action="show-toast" data-message="Здесь будут безопасность, перенос и отмена">•••</button>' })}
-    <div class="chat-thread">
-      <div class="guarantee"><strong style="font-size:15px">Сегодня · 19:00</strong><p>Парк Скаришевский · главный вход · только публичное место</p></div>
-      ${state.messages.map(m => `<div class="message ${m.mine ? 'message--mine' : ''}">${m.text}<small>${m.time}</small></div>`).join('')}
-      <button class="soft-button" data-action="next" data-target="meeting">Перейти к встрече</button>
-    </div>
-    <form class="chat-compose" data-action="send-message"><input id="messageInput" aria-label="Сообщение" placeholder="Написать сообщение"><button aria-label="Отправить">↑</button></form>
-  </section>`;
+  const b = booking(), e = currentEvent();
+  if (!b) return activeRequired('Чат встречи');
+  if (b.status === 'cancelled') return cancelled();
+  return frame(company(e),`<h1 class="display display--small">${e.title}</h1><div class="chat-context"><span>${e.time}</span>${link('Детали','matched','text-button')}</div><div class="chat-thread">${note('Сначала договорённости',e.agreement)}${e.people.slice(0,2).filter(id => !state.blockedPeople.includes(id)).map((id,i) => `<div class="message"><small>${M.people[id].name}</small>${i ? 'Отлично! Если буду задерживаться, отмечу это в плане.' : 'Привет! Буду у согласованной точки. До встречи 🙂'}</div>`).join('')}${b.messages.map(m => `<div class="message ${m.mine ? 'message--mine' : 'message--system'}">${m.mine ? '<small>Ты · только в этом макете</small>' : ''}${esc(m.text)}</div>`).join('')}<div class="actions">${b.status === 'completed' ? link('Запланировать следующую','repeat','soft-button') : button('Я на месте · начать встречу','arrive','','soft-button')}${link('Участники и безопасность','safety','text-button')}</div></div><form class="chat-compose" id="chat-form"><input name="message" aria-label="Сообщение группе" placeholder="Сообщение в демо-чат" maxlength="1000" value="${esc(chatDraft)}"><button aria-label="Отправить сообщение">↑</button></form>`);
 }
-
 function meeting() {
-  return `<section class="screen">
-    ${topbar('Текущий опыт', { back: false, right: '<button class="icon-button" data-action="show-toast" data-message="Связаться с поддержкой Experience">?</button>' })}
-    <p class="section-kicker">ВЫ ВСТРЕТИЛИСЬ</p>
-    <h1 class="display display--small">Прогулка с Мартой</h1>
-    <p class="lead">Твой Live-статус выключен. Другие пользователи больше не видят тебя рядом.</p>
-    <div class="meeting-status">
-      <div class="timer" id="meetingTimer">00:18:42</div>
-      <p>прошло с подтверждения встречи</p>
-      <div class="safety-actions">
-        <button data-action="show-toast" data-message="Контакт получил уведомление и данные места">Поделиться статусом</button>
-        <button data-action="show-toast" data-message="Открыта служба поддержки">Мне некомфортно</button>
-      </div>
-    </div>
-    <h2 class="list-title">Небольшая подсказка</h2>
-    <div class="reason"><span class="reason-icon">✦</span><div><strong>Начните с настоящего</strong><p>«Что за последнюю неделю неожиданно тебя поддержало?»</p></div></div>
-    <div class="actions"><button class="primary" data-action="next" data-target="feedback">Завершить опыт</button><button class="secondary" data-action="show-toast" data-message="Опыт продлён ещё на 30 минут">Продлить время</button></div>
-  </section>`;
+  const b = booking(), e = currentEvent();
+  if (!b) return activeRequired('Во время встречи');
+  if (b.status === 'cancelled') return cancelled();
+  const questions = e.intent === 'deep' ? ['Какой небольшой выбор в последнее время оказался важным?','Что помогает тебе чувствовать себя на своём месте?','О чём тебе было бы интересно узнать у остальных?'] : ['Какое маленькое открытие порадовало тебя на этой неделе?','Куда в городе ты бы отвёл друга на свободный час?','Чему ты попробовал бы научиться просто ради удовольствия?'];
+  return frame('Вы встретились',`${heading('МОЖНО ПРОСТО БЫТЬ СОБОЙ',e.title,'Телефон может подождать. Вопросы ниже — только если хочется помочь разговору.')}<div class="conversation-card"><span>ВОПРОС ${questionIndex % questions.length + 1} / ${questions.length}</span><p>${questions[questionIndex % questions.length]}</p>${button('Другой вопрос','question','','text-button')}</div><p class="fine-print">Можно не отвечать. Советы — только по запросу.</p>${state.astro ? note('Тема по желанию','Какие описания твоего знака тебе близки, а с какими ты совсем не согласен? Можно пропустить.') : ''}${note('Встреча может закончиться вовремя',`${e.duration} — ориентир, не обязательство. Можно уйти раньше без объяснения личных причин.`)}<div class="actions">${link('Хочется продолжить вечер','continueEvening','soft-button')}${link('Завершить и оставить отзыв','feedback','primary')}${link('Мне некомфортно','safety','danger-button')}${link('Вернуться в чат','chat','text-button')}</div>`);
 }
-
+function continueEvening() {
+  const b = booking();
+  if (!b) return activeRequired('Продолжить вечер');
+  return frame('',`${heading('ТОЛЬКО ПО ЖЕЛАНИЮ','Ещё немного<br>времени вместе?','Сначала спросим остальных. Продолжение не предполагает алкоголь и не обязывает никого оставаться.')}<div class="continuation-place"><span>☕</span><h2>Тихое кафе рядом</h2><p>Пример: 7 минут пешком · до 25 zł<br>Нужно проверить наличие мест и часы работы.</p></div>${b.continuation ? note('Предложение в демо-чате','Остальные пока не подтвердили. Первоначальные время и место встречи не изменены.') : ''}<div class="actions">${button('Предложить группе продолжить','continue-evening','','primary',b.continuation ? 'disabled' : '')}${link('Открыть чат','chat')}${link('Мне достаточно на сегодня','feedback','text-button')}</div><p class="fine-print">Никакое кафе не забронировано. Это проверка сценария.</p>`);
+}
+function cancel() {
+  if (!booking()) return activeRequired('Отмена участия');
+  return frame('',`${heading('ПЛАНЫ МЕНЯЮТСЯ','Не получается<br>прийти?','Отмени участие явно: место освободится, а группа увидит изменение в демо-чате.')}<div class="field"><label for="cancel-reason">Причина — по желанию, только для сервиса</label><select id="cancel-reason"><option>Планы изменились</option><option>Не подходит формат</option><option>Плохо себя чувствую</option><option>Не хочу указывать</option></select></div>${note('Без скрытых наказаний','Не будем незаметно отдалять следующие встречи. При регулярных неявках правила должны быть объяснены отдельно и заранее.')}<div class="actions">${button('Отменить моё участие','cancel-book','','danger-button')}${link('Оставить встречу','matched')}</div>`);
+}
+function cancelled() {
+  return frame('',`${heading('УЧАСТИЕ ОТМЕНЕНО','Спасибо,<br>что предупредил.','Демо-место освобождено. Отмена отмечена в истории, приоритет следующих предложений не изменён.')}<div class="ready-seal"></div><div class="actions">${link('Найти другой опыт','recommendations','primary')}${link('Мои планы','plans')}</div>`,{paper:true});
+}
+function safety() {
+  const b = booking(), e = currentEvent();
+  if (!b) return activeRequired('Безопасность встречи');
+  return frame('Безопасность',`${heading('ТВОИ ГРАНИЦЫ ВАЖНЫ','Что сейчас<br>поможет?','Можно закончить встречу, исключить человека из будущего подбора или отдельно описать происшествие.')}<div class="safety-notice">Макет не связывается с поддержкой или экстренными службами. При непосредственной опасности обратись к персоналу места или в местную экстренную службу.</div><h2 class="list-title">Участники</h2>${e.people.map(id => `<div class="person-row">${avatar(id)}<div><strong>${M.people[id].name}</strong><small>${state.blockedPeople.includes(id) ? 'Исключён из будущего подбора' : 'Демо-участник встречи'}</small></div>${button(state.blockedPeople.includes(id) ? 'Вернуть' : 'Исключить','block',id,'text-button')}</div><div class="report-person">${button(`Сообщить о поведении: ${M.people[id].name}`,'report-person',id,'text-button')}</div>`).join('')}<div class="actions">${button('Проблема с местом','report-person','venue','secondary')}${link('Завершить встречу','feedback','danger-button')}${link('Вернуться в чат','chat','text-button')}</div><p class="fine-print">Исключение в демо применяется только к твоим предложениям. Это не блокировка чужого аккаунта.</p>`);
+}
+function report() {
+  if (!booking()) return activeRequired('Описание происшествия');
+  return frame('Сообщить о проблеме',`${heading('ПРИВАТНО · ДЕМОНСТРАЦИЯ','Что произошло?',`Касается: ${reportTarget === 'venue' ? M.venues[currentEvent().venue].name : M.people[reportTarget].name}.`)}<div class="field"><label for="report-reason">Причина</label><select id="report-reason"><option value="">Выбери причину</option>${['Нарушены договорённости','Нежелательные ухаживания','Грубость или угрозы','Проблема с местом','Другое'].map(x => `<option ${reportReason === x ? 'selected' : ''}>${x}</option>`).join('')}</select></div><div class="field"><label for="report-text">Что важно знать? Не указывай личные данные</label><textarea id="report-text" rows="4" maxlength="1500" placeholder="Описание ситуации — по желанию"></textarea></div>${reportTarget !== 'venue' ? '<label class="check-row"><input id="report-block" type="checkbox" checked><span>Также исключить этого участника из моих будущих встреч</span></label>' : ''}<div class="actions">${button('Сохранить пример обращения','submit-report')}</div><p class="fine-print">Обращение останется в этой вкладке. Его никто не получит и не рассмотрит.</p>`);
+}
+function reportDone() {
+  return frame('',`${heading('ДЕМО-ОБРАЩЕНИЕ СОХРАНЕНО','Твоё сообщение<br>не потерялось.','В рабочем приложении здесь должны быть номер обращения, статус и понятный способ связаться с поддержкой.')}<div class="report-receipt"><small>ПРИМЕР ОБРАЩЕНИЯ</small><strong>EXP-DEMO-01</strong><span>Не отправлено · только макет</span></div><div class="actions">${link('Завершить встречу','feedback','primary')}${link('К участникам','safety')}</div>`);
+}
 function feedback() {
-  const questions = [
-    ['happened','Встреча состоялась?',['Да','Частично','Нет']],
-    ['safe','Тебе было безопасно?',['Да','Не совсем','Нет']],
-    ['need','Получил ли ты то, за чем пришёл?',['Да','Отчасти','Нет']],
-    ['again','Хотел бы встретиться с Мартой снова?',['Да','Пока не знаю','Нет']]
-  ];
-  return `<section class="screen">
-    ${topbar('', { back: false })}
-    <p class="section-kicker">ПОСЛЕ ОПЫТА</p>
-    <h1 class="display display--small">Как всё прошло?</h1>
-    <p class="lead">Ответы приватны. У Марты не будет публичного рейтинга.</p>
-    ${questions.map(q => `<div class="feedback-question"><h3>${q[1]}</h3><div class="feedback-options">${q[2].map(opt => `<button class="${state.feedback[q[0]] === opt ? 'is-selected' : ''}" data-action="feedback" data-key="${q[0]}" data-value="${opt}">${opt}</button>`).join('')}</div></div>`).join('')}
-    <div class="actions"><button class="primary" data-action="next" data-target="summary">Сохранить ответы</button><button class="text-button" data-action="next" data-target="summary">Пропустить</button></div>
-  </section>`;
+  const b = booking();
+  if (!b) return activeRequired('После встречи');
+  if (b.status === 'cancelled') return cancelled();
+  const f = b.feedback, qs = [['happened','Встреча состоялась?',['Да','Частично','Нет']]];
+  if (f.happened !== 'Нет') qs.push(['safe','Было безопасно и комфортно?',['Да','Не совсем','Нет']],['need','Получил то, за чем пришёл?',['Да','Отчасти','Нет']],['venue','Как тебе место?',['Подошло','Не подошло']]);
+  return frame('',`${heading('ПОСЛЕ ОПЫТА','Не оценка людей.<br>Твои ощущения.','Ответы приватны. Они не превращаются в публичный рейтинг участников.')}${qs.map(([key,title,options]) => `<div class="feedback-question"><h3>${title}</h3><div class="feedback-options">${options.map(value => `<button data-action="feedback" data-key="${key}" data-value="${value}" aria-pressed="${f[key] === value}" class="${f[key] === value ? 'is-selected' : ''}">${value}</button>`).join('')}</div></div>`).join('')}${f.venue === 'Не подошло' && f.happened !== 'Нет' ? `<label class="check-row"><input type="checkbox" data-bind="excludeFeedback" ${b.excludeFeedback ? 'checked' : ''}><span>Больше не предлагать мне ${M.venues[currentEvent().venue].name}</span></label>` : ''}<label class="check-row"><input type="checkbox" data-bind="quieter" ${state.preferences.quieter ? 'checked' : ''}><span>В следующий раз хочу более тихое место</span></label><div class="actions">${button('Сохранить и продолжить','save-feedback')}${button('Сейчас не хочу отвечать','skip-feedback','','text-button')}</div>`);
 }
-
 function summary() {
-  return `<section class="screen screen--ready">
-    ${topbar('', { back: false })}
-    <div class="summary-orbit"><span>Опыт<br>завершён</span></div>
-    <h1 class="display display--small" style="text-align:center">Ты не просто получил мэтч</h1>
-    <p class="lead" style="text-align:center">Ты встретился с человеком и узнал, какой формат общения подходит тебе сейчас.</p>
-    <div class="guarantee"><strong>Что мы запомнили</strong><p>Спокойная прогулка один на один подошла лучше, чем шумное событие. Это повлияет на следующие предложения.</p></div>
-    <div class="actions"><button class="primary" data-action="next" data-target="home">Вернуться на главную</button><button class="secondary" data-action="show-toast" data-message="Марта получит нейтральное приглашение без раскрытия ваших ответов">Предложить повторить позже</button></div>
-  </section>`;
+  const b = booking(), e = currentEvent();
+  if (!b) return activeRequired('Итог встречи');
+  const outcome = M.feedbackOutcome(b.feedback);
+  return frame('',`${heading('СЛЕДУЮЩИЙ ОПЫТ БУДЕТ УЧИТЫВАТЬ ЭТО',outcome.title,outcome.text)}<div class="outcome-symbol ${outcome.kind}">${outcome.kind === 'success' ? '✧' : outcome.kind === 'unsafe' ? '♡' : '◌'}</div>${state.excludedVenues.includes(e.venue) ? note('Место исключено',`${M.venues[e.venue].name} больше не появится в твоём подборе. Вернуть его можно в профиле.`) : b.feedback.venue === 'Не подошло' ? note('Отзыв о месте сохранён','Низкая оценка не равна исключению. Если не хочешь возвращаться, явно исключи место.') : ''}${state.preferences.quieter ? note('Учли пожелание','В следующем подборе отметим тихие места.') : ''}<div class="actions">${outcome.kind === 'unsafe' ? link('Сообщить о происшествии','safety','danger-button') : ''}${['success','mismatch','neutral'].includes(outcome.kind) && b.status === 'completed' ? link('С кем хочется увидеться снова?','repeat','primary') : ''}${link('Подобрать другой опыт','recommendations',outcome.kind === 'missing' ? 'primary' : 'secondary')}${link('Мои планы','plans','text-button')}${link('Вернуться к ответам','feedback','text-button')}</div>`,{paper:true});
 }
-
-function radar() {
-  return `<section class="screen screen--radar screen--with-nav">
-    <div class="radar-head">
-      ${topbar('Рядом сейчас', { back: false, right: `<button class="toggle ${state.live ? 'is-on' : ''}" data-action="toggle-live" aria-label="Включить или выключить Live"></button>` })}
-      <span class="live-switch">Live включён на 43 минуты</span>
-    </div>
-    <div class="radar-map" aria-label="Приблизительная карта людей и зон рядом">
-      <span class="radar-me" aria-label="Ваше приблизительное положение"></span>
-      <button class="radar-person radar-person--one" data-action="radar-person" data-value="marta">${img(people.marta)}<span>☕ 300–500 м</span></button>
-      <button class="radar-person radar-person--two" data-action="radar-person" data-value="denis">${img(people.denis)}<span>🚶 до 1 км</span></button>
-      <button class="radar-person radar-person--three" data-action="radar-person" data-value="lena">${img(people.lena)}<span>🎵 в зоне</span></button>
-      <button class="zone-beacon" data-action="next" data-target="zone">12<br>в Live Zone</button>
-    </div>
-    <div class="radar-sheet">
-      <p class="section-kicker">АКТИВНЫЕ ЗОНЫ</p>
-      <button class="zone-card" data-action="next" data-target="zone"><span class="zone-icon">♫</span><span><strong>Praga Hall</strong><small>12 участников · концерт сегодня</small></span><span>›</span></button>
-      <button class="zone-card" data-action="show-toast" data-message="В кофейне 4 человека открыты к общению"><span class="zone-icon">☕</span><span><strong>Forum Coffee</strong><small>4 участника · партнёрское место</small></span><span>›</span></button>
-    </div>
-    ${bottomNav('radar')}
-  </section>`;
+function repeat() {
+  const b = booking(), e = currentEvent();
+  if (!b) return activeRequired('Следующая встреча');
+  if (b.status !== 'completed') return frame('',`${heading('СНАЧАЛА — ПЕРВАЯ ВСТРЕЧА','Повторим,<br>если захочется.','Этот сценарий доступен после состоявшейся встречи.')}<div class="actions">${link('К моим планам','plans','primary')}</div>`);
+  const list = e.people.filter(id => !state.blockedPeople.includes(id));
+  return frame('',`${heading('ХОРОШИЙ КОНТАКТ ХОЧЕТСЯ ПРОДОЛЖИТЬ','С кем соберёмся<br>ещё раз?','Отказы и твой выбор не показываются остальным. Приглашение придёт только выбранным людям — в рабочем приложении.')}${list.map(id => choice('repeatPeople',id,M.people[id].name,'Предложить новый совместный опыт','○',b.repeatPeople)).join('')}${!list.length ? note('Нет доступных участников','Ты исключил участников этой встречи. Можно найти новую компанию.') : ''}<div class="actions">${button('Выбрать следующий план','repeat-next','','primary',!list.length ? 'disabled' : '')}${link('Не сейчас','plans','text-button')}</div>`);
 }
-
-function radarProfile() {
-  const p = people[state.selectedRadarPerson];
-  return `<section class="screen">
-    ${topbar('', { right: '<button class="icon-button" data-action="show-toast" data-message="Пожаловаться или заблокировать">•••</button>' })}
-    <div class="profile-hero">${img(p)}<h1>${p.name}, ${p.age}</h1><p>${p.distance} · точное место скрыто</p><span class="intent-badge">● ${p.intent}</span></div>
-    <div class="compatibility"><div class="compatibility-head"><strong>Почему может получиться</strong><span>хороший ритм</span></div><p>${p.astro}</p></div>
-    <h2 class="list-title">Что ${p.name} готов${p.name === 'Денис' ? '' : 'а'} сделать</h2>
-    <div class="reason-list">
-      <div class="reason"><span class="reason-icon">◷</span><div><strong>${p.note}</strong><p>После окончания Live-режима профиль исчезнет с радара.</p></div></div>
-      <div class="reason"><span class="reason-icon">⌂</span><div><strong>Только публичное место</strong><p>Точная точка откроется после взаимного согласия.</p></div></div>
-    </div>
-    <div class="actions"><button class="primary" data-action="next" data-target="inviteBuilder">Предложить опыт</button><button class="secondary" data-action="show-toast" data-message="Профиль скрыт для этого Live-сеанса">Не показывать снова</button></div>
-  </section>`;
+function repeatPlan() {
+  const b = booking();
+  if (!b || b.status !== 'completed' || !b.repeatPeople.length) return repeat();
+  return frame('',`${heading('СВОИ ЛЮДИ · НОВЫЙ ОПЫТ','Осталось<br>договориться.','Выбери вариант и время. Пока остальные не подтвердили, это только предложение.')}<h2 class="list-title">Что предложить?</h2>${choice('repeatFormat','coffee','Кофе и разговор','До 45 zł на месте · 60 минут','☕',b.repeatFormat || 'coffee')}${choice('repeatFormat','walk','Новый маршрут пешком','Без расходов · 45 минут','↗',b.repeatFormat || 'coffee')}<h2 class="list-title">Какое время тебе удобно?</h2>${choice('repeatTime','Суббота · 12:00','Суббота, 12:00','','▤',b.repeatTime || 'Суббота · 12:00')}${choice('repeatTime','Воскресенье · 16:00','Воскресенье, 16:00','','▤',b.repeatTime || 'Суббота · 12:00')}<div class="actions">${button('Создать демо-приглашение','send-repeat')}</div><p class="fine-print">Реальные приглашения не отправляются. Новое место выбирается только после согласования времени.</p>`);
 }
-
-function inviteBuilder() {
-  const p = people[state.selectedRadarPerson];
-  return `<section class="screen">
-    ${topbar('Новый офер')}
-    <p class="section-kicker">КОМУ</p>
-    <div class="zone-card">${img(p)}<span><strong>${p.name}, ${p.age}</strong><small>${p.intent}</small></span></div>
-    <h1 class="display display--small" style="margin-top:18px">Что предложим?</h1>
-    <div class="offer-builder">
-      <button class="offer-option" data-action="show-toast" data-message="Выбрано: кофе на 20 минут"><span>☕</span><span><strong>Кофе на 20 минут</strong><small>Forum Coffee · 350 м</small></span><span>✓</span></button>
-      <button class="offer-option" data-action="show-toast" data-message="Выбрано: короткая прогулка"><span>🚶</span><span><strong>Короткая прогулка</strong><small>Публичный маршрут рядом</small></span><span>›</span></button>
-      <button class="offer-option" data-action="show-toast" data-message="Добавить свой безопасный формат"><span>＋</span><span><strong>Другой формат</strong><small>Добавить предложение</small></span><span>›</span></button>
-    </div>
-    <div class="guarantee"><strong>Марта увидит до принятия</strong><p>Твоё фото, формат, время, границы и объяснение совместимости — но не точные координаты.</p></div>
-    <div class="actions"><button class="primary" data-action="next" data-target="offerSent">Отправить офер</button></div>
-  </section>`;
+function repeatStatus() {
+  const r = state.repeat;
+  if (!r) return repeat();
+  return frame('',`${heading(r.accepted ? 'ДЕМО-ОТВЕТ ПОЛУЧЕН' : 'ПРИГЛАШЕНИЕ СОЗДАНО',r.accepted ? 'Время согласовано.' : 'Дадим людям<br>время ответить.',r.accepted ? 'Осталось согласовать конкретное публичное место. В «Планах» это ещё не подтверждённая бронь.' : 'Не нужно напоминать каждому отдельно. В макете ответ можно сымитировать кнопкой ниже.')}<div class="meeting-ticket"><h3>${r.format === 'walk' ? 'Новый маршрут пешком' : 'Кофе и разговор'}</h3><p>${r.time}</p>${r.people.map(id => `<div class="person-row">${avatar(id)}<strong>${M.people[id].name}</strong><small>${r.accepted ? 'Время подходит' : 'Ожидаем ответ'}</small></div>`).join('')}</div><div class="actions">${!r.accepted ? button('Демо: всем подходит время','accept-repeat') : ''}${link('Мои планы','plans',r.accepted ? 'primary' : 'secondary')}${button('Отозвать предложение','cancel-repeat','','text-button')}</div>`);
 }
-
-function zone() {
-  return `<section class="screen screen--dark">
-    ${topbar('Live Zone')}
-    <p class="section-kicker" style="color:#f5a78e">PRAGA HALL · ДО 23:30</p>
-    <h1 class="display">12 человек открыты к общению</h1>
-    <p class="lead">Все участники подтвердили присутствие в зоне. Точные позиции внутри площадки не показываются.</p>
-    <div class="natal-mini" style="margin-top:34px"><strong>🎵<br>сейчас здесь</strong></div>
-    <div class="profile-triad">
-      <div><small>Потанцевать</small><strong>5</strong></div><div><small>Поговорить</small><strong>4</strong></div><div><small>Компания</small><strong>3</strong></div>
-    </div>
-    <div class="actions"><button class="primary" data-action="radar-person" data-value="lena">Посмотреть подходящий офер</button><button class="secondary" data-action="show-toast" data-message="Вы отмечены в зоне на 60 минут">Отметиться в зоне</button></div>
-  </section>`;
+function lastMinute() {
+  const list = M.recommend(state,{soonOnly:true});
+  return frame('',`${heading('СВОБОДНЫЙ ЧАС — УЖЕ ПЛАН','Компания<br>в ближайший час.','Не карта чужих перемещений, а свободные места на конкретных встречах. Все варианты здесь демонстрационные.')}${filterSummary()}<div class="suggestion-list">${list.map(e => eventCard(e)).join('')}</div>${!list.length ? note('Сейчас нет подходящих демо-мест','Твои язык, бюджет, намерение и исключения не меняются. Можно оставить запрос или пересмотреть условия.') : note('Место — только после подтверждения','Нажатие удержит демо-место на 2 минуты. Истечение времени не влияет на приоритет.')}<div class="actions">${button(state.waitlisted ? 'Отменить запрос на место' : 'Ждать подходящее место','waitlist','','soft-button')}${link('Изменить мои условия','need')}</div>${state.waitlisted ? '<p class="fine-print">Лист ожидания активен только в этой вкладке. Push-уведомлений нет.</p>' : ''}`,{nav:'lastMinute',back:false});
 }
-
+function seatUnavailable() {
+  return frame('',`${heading('ЭТО БЫВАЕТ','Место уже<br>недоступно.','Время удержания закончилось или место заняли. Никаких списаний и изменений приоритета.')}<div class="actions">${link('Посмотреть другие места','lastMinute','primary')}${button('Ждать следующее место','waitlist','','secondary')}</div>${state.waitlisted ? note('Запрос сохранён','Это локальный лист ожидания в макете.') : ''}`);
+}
+const statusLabels = {confirmed:'Подтверждено',arrived:'Ты на месте',late:'Опаздываешь на 10 минут',completed:'Завершено',feedbackPending:'Завершение не подтверждено',missed:'Не состоялось',cancelled:'Отменено · без скрытого штрафа'};
 function plans() {
-  return `<section class="screen screen--with-nav">
-    ${topbar('Мои планы', { back: false, right: '<button class="icon-button" data-action="show-toast" data-message="Создание собственного опыта появится после пилота">＋</button>' })}
-    <p class="section-kicker">СЕГОДНЯ</p>
-    <div class="plan-row"><div class="plan-date"><small>сен</small><strong>7</strong></div><div><h3>Прогулка и спокойный разговор</h3><p>19:00 · Марта · подтверждено</p></div><button class="text-button" data-jump="matched">Открыть</button></div>
-    <h2 class="list-title">История</h2>
-    <div class="plan-row"><div class="plan-date" style="background:#f0e8dc;color:#6d5a45"><small>авг</small><strong>29</strong></div><div><h3>Кофе после работы</h3><p>Опыт завершён · формат подошёл</p></div><span>✓</span></div>
-    <div class="plan-row"><div class="plan-date" style="background:#f0e8dc;color:#6d5a45"><small>авг</small><strong>21</strong></div><div><h3>Выставка фотографии</h3><p>Опыт отменён · без штрафа</p></div><span>—</span></div>
-    ${bottomNav('plans')}
-  </section>`;
+  return frame('',`${heading('МОИ ПЛАНЫ','Общение,<br>которое продолжается.')}${state.repeat ? `<button class="upcoming-banner" data-jump="repeatStatus"><span>${state.repeat.accepted ? 'ВРЕМЯ СОГЛАСОВАНО · МЕСТО ЕЩЁ НЕТ' : 'ЖДЁМ ОТВЕТЫ'}</span><strong>${state.repeat.format === 'walk' ? 'Новый маршрут пешком' : 'Кофе и разговор'}</strong><small>${state.repeat.time} →</small></button>` : ''}${state.bookings.length ? state.bookings.slice().reverse().map(b => `<button class="plan-row plan-button" data-action="open-booking" data-value="${b.eventId}"><div class="plan-date"><strong>${M.venues[M.eventById(b.eventId).venue].symbol}</strong></div><div><h3>${M.eventById(b.eventId).title}</h3><p>${M.eventById(b.eventId).time}</p><p>${statusLabels[b.status]}</p></div><span>›</span></button>`).join('') : `<div class="empty-illustration">▤</div><p class="lead">Здесь появятся подтверждённые встречи и предложения собраться снова.</p><div class="actions">${link('Выбрать первый опыт','mood','primary')}</div>`}`,{nav:'plans',back:false});
 }
-
 function profile() {
-  return `<section class="screen screen--with-nav">
-    ${topbar('Профиль', { back: false, right: '<button class="icon-button" data-action="show-toast" data-message="Настройки профиля">⚙</button>' })}
-    <div class="profile-hero">${img({name:'Алексей',image:'https://i.pravatar.cc/200?img=11'})}<h1>Алексей</h1><p>Спокойная глубина · Варшава</p></div>
-    <div class="compatibility"><div class="compatibility-head"><strong>Твой стиль</strong><span>обновлён сегодня</span></div><p>Один на один · честно, но мягко · чаще планируешь заранее · открыт новому в безопасном контексте.</p></div>
-    <h2 class="list-title">Приватность</h2>
-    <div class="setting-row"><div><strong>Показывать меня в Live</strong><small>Только когда включаю вручную</small></div><button class="toggle is-on" data-action="toggle-setting" aria-label="Переключить"></button></div>
-    <div class="setting-row"><div><strong>Романтические предложения</strong><small>Выключены</small></div><button class="toggle" data-action="toggle-setting" aria-label="Переключить"></button></div>
-    <div class="setting-row"><div><strong>Натальная совместимость</strong><small>Используется как объясняющий слой</small></div><button class="toggle is-on" data-action="toggle-setting" aria-label="Переключить"></button></div>
-    ${bottomNav('profile')}
-  </section>`;
+  return frame('',`${heading('ДЕМО-ПРОФИЛЬ','Не начинаем<br>каждый раз с нуля.')}<div class="profile-facts"><span>Варшава</span><span>${state.language === 'pl' ? 'Польский' : 'Английский'}</span><span>До ${state.budget} zł</span><span>${state.age}</span></div><div class="actions">${link('Изменить основные предпочтения','onboarding')}</div><h2 class="list-title">Исключённые места</h2>${state.excludedVenues.length ? state.excludedVenues.map(id => `<div class="setting-row"><strong>${M.venues[id].name}</strong>${button('Вернуть','restore-venue',id,'text-button')}</div>`).join('') : '<p class="body-copy muted">Пока нет. Исключения применяются ко всему подбору.</p>'}<h2 class="list-title">Исключённые участники</h2>${state.blockedPeople.length ? state.blockedPeople.map(id => `<div class="setting-row"><strong>${M.people[id].name}</strong>${button('Вернуть','block',id,'text-button')}</div>`).join('') : '<p class="body-copy muted">Пока нет. Эти настройки не видны другим.</p>'}<h2 class="list-title">Дополнительный слой</h2><button class="action-tile" data-jump="birth"><span class="tile-icon">☾</span><span><strong>Астрологическая карта</strong><small>По желанию · не влияет на доступ к встречам</small></span><span>›</span></button>${note('Только в этой вкладке','Макет хранит демо-выборы в sessionStorage. Нет регистрации, геолокации, реальных сообщений, оплаты или службы поддержки.')}<div class="actions">${link('Сбросить демо','reset','text-button')}</div>`,{nav:'profile',back:false});
 }
-
-const screens = {
-  welcome, signin, otp, birth, natalReady, personalityIntro, personalityQuiz,
-  profileReady, home, mood, need, format, boundaries, recommendations,
-  experienceDetail, offerSent, matched, chat, meeting, feedback, summary,
-  radar, radarProfile, inviteBuilder, zone, plans, profile
-};
-
-function render() {
-  const fn = screens[state.screen] || welcome;
-  app.innerHTML = fn();
-  app.scrollTop = 0;
+function birth() {
+  return frame('',`${heading('НЕОБЯЗАТЕЛЬНО','Ещё один повод<br>поговорить.','Астрология — развлекательный слой. Она не доказывает совместимость и не заменяет твои ожидания и границы.')}<div class="astro-art">☾</div><label class="check-row"><input type="checkbox" data-bind="astro" ${state.astro ? 'checked' : ''}><span>Показывать астрологические темы для разговора</span></label>${state.astro ? note('Пример темы','Какие описания твоего знака тебе близки, а с какими ты совсем не согласен? Любой участник может пропустить вопрос.') : ''}<p class="fine-print">В этом макете натальная карта не рассчитывается. Дата и место рождения не запрашиваются.</p><div class="actions">${link('Сохранить и вернуться','profile','primary')}${link('Продолжить без астрологии','home')}</div>`);
 }
+function reset() { return frame('',`${heading('НАЧАТЬ С ЧИСТОГО ЛИСТА','Сбросить<br>этот демо-сеанс?','Удалятся только локальные выборы, сообщения и планы в этой вкладке.')}<div class="actions">${button('Да, начать заново','reset-demo','','danger-button')}${link('Сохранить мои выборы','profile')}</div>`); }
 
-function navigate(screen, push = true) {
-  if (!screens[screen]) return;
-  if (push && state.screen !== screen) state.history.push(state.screen);
-  state.screen = screen;
-  window.history.replaceState({}, '', `?screen=${encodeURIComponent(screen)}`);
-  render();
+const screens = {welcome,onboarding,home,mood,need,format,boundaries,recommendations,experienceDetail,reservation,matched,chat,meeting,continueEvening,cancel,cancelled,safety,report,reportDone,feedback,summary,repeat,repeatPlan,repeatStatus,lastMinute,seatUnavailable,plans,profile,birth,reset};
+function render(preserveScroll = false) {
+  const scroll = preserveScroll ? app.querySelector('.screen')?.scrollTop || 0 : 0;
+  screen = aliases[screen] || screen;
+  if (!screens[screen]) screen = 'welcome';
+  app.innerHTML = screens[screen]();
+  const scroller = app.querySelector('.screen');
+  if (scroller) scroller.scrollTop = scroll;
+  document.querySelectorAll('.journey-nav button').forEach(b => b.classList.toggle('is-current',b.dataset.jump === screen));
+  updateCountdown(); save();
 }
-
-function goBack() {
-  const target = state.history.pop() || 'home';
-  state.screen = target;
-  window.history.replaceState({}, '', `?screen=${encodeURIComponent(target)}`);
-  render();
+function navigate(target,push = true) {
+  target = aliases[target] || target;
+  if (!screens[target]) return;
+  if (push && target !== screen) history.push(screen);
+  screen = target; error = ''; chatDraft = '';
+  const url = new URL(location.href); url.searchParams.set('screen',screen);
+  window.history.replaceState({},'',url); render();
 }
-
 let toastTimer;
-function showToast(message) {
-  toast.textContent = message;
-  toast.classList.add('is-visible');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove('is-visible'), 2400);
+function showToast(message) { toast.textContent = message; toast.classList.add('is-visible'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('is-visible'),3500); }
+function fail(message) { error = message; render(); }
+function updateCountdown() {
+  const node = document.querySelector('#hold-countdown');
+  if (!node) return;
+  const remaining = Math.max(0,Math.ceil(((state.hold?.eventId === selected ? state.hold.expiresAt : 0) - Date.now()) / 1000));
+  node.textContent = `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2,'0')}`;
+  if (!remaining && screen === 'reservation') { state.hold = null; navigate('seatUnavailable'); }
 }
-
-document.addEventListener('click', event => {
-  const jump = event.target.closest('[data-jump]');
+function toggle(list,value) { return list.includes(value) ? list.filter(x => x !== value) : [...list,value]; }
+function blockPerson(id) {
+  state.blockedPeople = toggle(state.blockedPeople,id);
+  if (!state.blockedPeople.includes(id)) return;
+  state.bookings.forEach(b => b.repeatPeople = b.repeatPeople.filter(p => p !== id));
+  if (state.repeat?.people.includes(id)) { state.repeat.people = state.repeat.people.filter(p => p !== id); if (!state.repeat.people.length) state.repeat = null; }
+}
+document.addEventListener('click',ev => {
+  const jump = ev.target.closest('[data-jump]');
   if (jump) { navigate(jump.dataset.jump); return; }
-
-  const target = event.target.closest('[data-action]');
-  if (!target) return;
-  const action = target.dataset.action;
-
-  if (action === 'back') goBack();
-  if (action === 'next') navigate(target.dataset.target);
-  if (action === 'show-toast') showToast(target.dataset.message || 'Готово');
-  if (action === 'start-quiz') { state.quizStep = 0; navigate('personalityQuiz'); }
-  if (action === 'quiz-answer') {
-    document.querySelectorAll('.scale-dot').forEach(el => el.classList.remove('is-selected'));
-    target.classList.add('is-selected');
+  const target = ev.target.closest('[data-action]');
+  if (!target || target.disabled) return;
+  const {action,value,key} = target.dataset, b = booking();
+  switch (action) {
+    case 'go': navigate(value); break;
+    case 'back': navigate(history.pop() || 'home',false); break;
+    case 'choose':
+      if (key === 'repeatPeople' && b) b.repeatPeople = toggle(b.repeatPeople,value);
+      else if (['repeatTime','repeatFormat'].includes(key) && b) b[key] = value;
+      else if (key === 'boundaries' && ['noAdvice','noAlcohol'].includes(value)) state.boundaries = toggle(state.boundaries,value);
+      else if (['energy','intent','company','when','start'].includes(key)) { state[key] = value; state.acceptedAgeEventId = null; }
+      error = ''; render(true); break;
+    case 'continue-intent': if (state.intent === 'deep' && !state.listen) fail('Для глубокого разговора важно быть готовым и делиться, и слушать. Подтверди это или выбери другой формат.'); else navigate('format'); break;
+    case 'select-event': selected = value; state.acceptedAgeEventId = null; navigate('experienceDetail'); break;
+    case 'prepare-book':
+      if (currentEvent().intent === 'deep' && !state.listen) { navigate('need'); fail('Сначала подтверди готовность слушать других.'); break; }
+      if (currentEvent().age !== state.age) state.acceptedAgeEventId = selected;
+      if (currentEvent().soon && !M.holdSeat(state,selected)) navigate('seatUnavailable'); else navigate('reservation'); break;
+    case 'confirm-book':
+      if (!document.querySelector('#agreement')?.checked) { fail('Подтверди, что тебе подходят условия встречи.'); break; }
+      if (!M.confirmBooking(state,selected)) navigate('seatUnavailable'); else navigate('matched'); break;
+    case 'release-hold': state.hold = null; navigate('recommendations'); showToast('Предложение отклонено. Приоритет не изменён.'); break;
+    case 'demo-book': {
+      const demo = M.initialState();
+      for (const k of ['intent','company','language','age','budget','when']) state[k] = demo[k];
+      selected = 'coffee';
+      if (M.confirmBooking(state,selected)) navigate(value);
+      else { navigate('recommendations'); showToast('Пример недоступен из-за твоих исключений. Они сохранены.'); }
+      break;
+    }
+    case 'open-booking': selected = value; navigate(['completed','missed','feedbackPending'].includes(booking()?.status) ? 'summary' : booking()?.status === 'cancelled' ? 'cancelled' : 'matched'); break;
+    case 'arrive': if (b && ['confirmed','late','arrived'].includes(b.status)) { b.status = 'arrived'; navigate('meeting'); } break;
+    case 'late': if (b && ['confirmed','late'].includes(b.status)) { b.status = 'late'; b.messages.push({text:'В демо: ты предупредил, что опоздаешь на 10 минут.'}); render(); } break;
+    case 'cancel-book': if (b && M.cancelBooking(state,selected)) { b.cancelReason = document.querySelector('#cancel-reason').value; navigate('cancelled'); } break;
+    case 'exclude-venue': if (!state.excludedVenues.includes(value)) state.excludedVenues.push(value); state.hold = null; navigate('recommendations'); showToast('Место исключено. Его можно вернуть в профиле.'); break;
+    case 'restore-venue': state.excludedVenues = state.excludedVenues.filter(id => id !== value); render(true); break;
+    case 'block': blockPerson(value); render(true); showToast('Настройка будущего подбора обновлена.'); break;
+    case 'report-person': reportTarget = value; reportReason = ''; navigate('report'); break;
+    case 'submit-report': {
+      const reason = document.querySelector('#report-reason')?.value;
+      if (!reason) { fail('Выбери причину обращения.'); break; }
+      if (b) { b.report = {target:reportTarget,reason,text:document.querySelector('#report-text').value.trim()};
+        if (reportTarget !== 'venue' && document.querySelector('#report-block')?.checked && !state.blockedPeople.includes(reportTarget)) blockPerson(reportTarget);
+        navigate('reportDone'); }
+      break;
+    }
+    case 'feedback': if (b) { b.feedback[key] = value; if (key === 'happened' && value === 'Нет') { b.feedback = {happened:'Нет'}; b.excludeFeedback = false; } render(true); } break;
+    case 'save-feedback':
+      if (!b) break;
+      if (!b.feedback.happened || (b.feedback.happened !== 'Нет' && (!b.feedback.safe || !b.feedback.need))) { fail('Ответь на вопросы о встрече, безопасности и результате или выбери «Сейчас не хочу отвечать».'); break; }
+      b.status = b.feedback.happened === 'Нет' ? 'missed' : 'completed';
+      if (b.excludeFeedback && b.feedback.venue === 'Не подошло' && !state.excludedVenues.includes(currentEvent().venue)) state.excludedVenues.push(currentEvent().venue);
+      navigate('summary'); break;
+    case 'skip-feedback': if (b) {
+      b.status = b.feedback.happened === 'Нет' ? 'missed' : b.feedback.happened ? 'completed' : 'feedbackPending';
+      navigate('summary');
+    } break;
+    case 'question': questionIndex++; render(true); break;
+    case 'continue-evening': if (b && !b.continuation) { b.continuation = true; b.messages.push({text:'В демо: предложено продолжить в тихом кафе рядом. Время и место нужно согласовать со всеми.'}); render(true); } break;
+    case 'waitlist': state.waitlisted = !state.waitlisted; render(true); showToast(state.waitlisted ? 'Демо-запрос сохранён в этой вкладке.' : 'Демо-запрос отменён.'); break;
+    case 'repeat-next': if (!b?.repeatPeople.length) fail('Выбери хотя бы одного участника или вернись к планам.'); else navigate('repeatPlan'); break;
+    case 'send-repeat': if (b?.repeatPeople.length) { state.repeat = {eventId:selected,people:b.repeatPeople.filter(id => !state.blockedPeople.includes(id)),format:b.repeatFormat || 'coffee',time:b.repeatTime || 'Суббота · 12:00',accepted:false}; navigate('repeatStatus'); } break;
+    case 'accept-repeat': if (state.repeat) { state.repeat.accepted = true; render(); } break;
+    case 'cancel-repeat': state.repeat = null; navigate('plans'); break;
+    case 'reset-demo': try { sessionStorage.removeItem(STORAGE_KEY); } catch { /* Optional storage. */ } state = M.initialState(); selected = 'coffee'; history = []; navigate('welcome',false); break;
   }
-  if (action === 'quiz-next') {
-    if (state.quizStep < quiz.length - 1) { state.quizStep += 1; render(); }
-    else navigate('profileReady');
-  }
-  if (action === 'select-mood') { state.mood = target.dataset.value; render(); }
-  if (action === 'select-need') { state.need = target.dataset.value; render(); }
-  if (action === 'select-format') { state.format = target.dataset.value; render(); }
-  if (action === 'toggle-boundary') {
-    const value = target.dataset.value;
-    state.boundaries = state.boundaries.includes(value) ? state.boundaries.filter(x => x !== value) : [...state.boundaries, value];
-    render();
-  }
-  if (action === 'select-experience') { state.selectedExperience = target.dataset.value; navigate('experienceDetail'); }
-  if (action === 'radar-person') { state.selectedRadarPerson = target.dataset.value; navigate('radarProfile'); }
-  if (action === 'toggle-live') { state.live = !state.live; render(); showToast(state.live ? 'Live включён на 60 минут' : 'Вы исчезли с радара'); }
-  if (action === 'toggle-setting') { target.classList.toggle('is-on'); }
-  if (action === 'feedback') { state.feedback[target.dataset.key] = target.dataset.value; render(); }
+  save();
 });
-
-document.addEventListener('submit', event => {
-  const form = event.target.closest('[data-action="send-message"]');
-  if (!form) return;
-  event.preventDefault();
-  const input = form.querySelector('input');
-  if (!input.value.trim()) return;
-  state.messages.push({ mine: true, text: input.value.trim(), time: '18:44' });
-  render();
-  requestAnimationFrame(() => {
-    const thread = document.querySelector('.chat-thread');
-    if (thread) thread.scrollIntoView({ block: 'end' });
-  });
+document.addEventListener('change',ev => {
+  const key = ev.target.dataset.bind;
+  if (!key) { if (ev.target.id === 'report-reason') reportReason = ev.target.value; return; }
+  const value = ev.target.type === 'checkbox' ? ev.target.checked : ev.target.value;
+  if (key === 'excludeFeedback' && booking()) booking().excludeFeedback = value;
+  else if (key === 'quieter') state.preferences.quieter = value;
+  else if (['language','age','budget','listen','astro'].includes(key)) { state[key] = key === 'budget' ? Number(value) : value; state.acceptedAgeEventId = null; }
+  save(); if (key === 'astro') render(true);
 });
-
+document.addEventListener('input',ev => { if (ev.target.name === 'message') chatDraft = ev.target.value; });
+document.addEventListener('submit',ev => {
+  if (ev.target.id !== 'chat-form') return;
+  ev.preventDefault();
+  const text = new FormData(ev.target).get('message').trim();
+  if (!text || !booking() || booking().status === 'cancelled') return;
+  booking().messages.push({mine:true,text:text.slice(0,1000)}); chatDraft = ''; render();
+  const scroller = app.querySelector('.screen'); scroller.scrollTop = scroller.scrollHeight;
+  document.querySelector('[name="message"]')?.focus();
+});
+setInterval(updateCountdown,1000);
 render();

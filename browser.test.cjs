@@ -1,0 +1,146 @@
+const assert = require('node:assert/strict');
+const { chromium } = require('playwright');
+const base = process.env.PROTOTYPE_URL || 'http://127.0.0.1:64590/';
+
+(async () => {
+  const browser = await chromium.launch({ headless:true, channel:process.env.BROWSER_CHANNEL || 'chrome' });
+  const context = await browser.newContext({ viewport:{width:390,height:844}, reducedMotion:'reduce' });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror',error => errors.push(error.message));
+  const go = name => page.goto(`${base}?screen=${name}`);
+  const click = (action,value) => page.locator(`[data-action="${action}"]${value === undefined ? '' : `[data-value="${value}"]`}`).first().click();
+  const choose = (key,value) => page.locator(`[data-key="${key}"][data-value="${value}"]`).click();
+  const at = async name => assert.equal(new URL(page.url()).searchParams.get('screen'),name);
+  const reset = async () => { await go('reset'); await click('reset-demo'); };
+  const demo = async target => { await go(target); await click('demo-book'); };
+  const feedback = async (key,value) => choose(key,value);
+
+  try {
+    await reset();
+    await page.screenshot({path:'/private/tmp/experience-v2-welcome.png'});
+    await click('go','onboarding');
+    await page.locator('#language').selectOption('pl');
+    await click('go','home');
+    await page.screenshot({path:'/private/tmp/experience-v2-home.png'});
+    await click('go','mood');
+    await choose('energy','low');
+    await click('go','need');
+    await choose('intent','deep');
+    await click('continue-intent');
+    await at('need');
+    assert.ok(await page.getByRole('alert').count());
+    await page.locator('[data-bind="listen"]').check();
+    await click('continue-intent');
+    await at('format');
+    await choose('company','small');
+    await choose('when','planned');
+    await choose('start','chat');
+    await click('go','boundaries');
+    await click('go','recommendations');
+    assert.deepEqual(await page.locator('[data-action="select-event"]').evaluateAll(nodes => nodes.map(x => x.dataset.value)),['deep']);
+    await click('select-event','deep');
+    assert.match(await page.locator('#app').innerText(),/Разговор со смыслом/);
+    await click('prepare-book');
+    assert.ok(await page.locator('.preview-chat').count());
+    await click('confirm-book');
+    await at('reservation');
+    await page.locator('#agreement').check();
+    await click('confirm-book');
+    await at('matched');
+    await click('go','chat');
+    await page.getByRole('textbox',{name:'Сообщение группе'}).fill('<img src=x onerror="alert(1)"> Привет!');
+    await page.getByRole('button',{name:'Отправить сообщение',exact:true}).click();
+    assert.equal(await page.locator('.message--mine img').count(),0);
+    assert.match(await page.locator('.message--mine').innerText(),/<img src=x/);
+    await page.reload();
+    assert.match(await page.locator('.message--mine').innerText(),/Привет!/);
+    await click('arrive');
+    await click('question');
+    await click('go','continueEvening');
+    await click('continue-evening');
+    await click('go','feedback');
+    await feedback('happened','Да'); await feedback('safe','Да'); await feedback('need','Да');
+    await feedback('venue','Не подошло');
+    await page.locator('[data-bind="excludeFeedback"]').check();
+    await page.locator('[data-bind="quieter"]').check();
+    await click('save-feedback');
+    await at('summary');
+    assert.match(await page.locator('#app').innerText(),/Место исключено/);
+    await click('go','repeat');
+    await choose('repeatPeople','marta');
+    await click('repeat-next');
+    await choose('repeatFormat','walk');
+    await choose('repeatTime','Воскресенье · 16:00');
+    await click('send-repeat');
+    await click('accept-repeat');
+    await page.screenshot({path:'/private/tmp/experience-v2-repeat.png'});
+    await click('go','plans');
+    assert.match(await page.locator('#app').innerText(),/ВРЕМЯ СОГЛАСОВАНО/);
+    await go('recommendations');
+    assert.equal(await page.locator('[data-action="select-event"][data-value="deep"]').count(),0);
+    console.log('PASS full group journey, escaped chat, persisted choices, venue exclusion, repeat invitation');
+
+    await reset(); await demo('feedback');
+    await feedback('happened','Нет'); await click('save-feedback');
+    assert.match(await page.locator('#app').innerText(),/Встреча не состоялась/);
+    assert.equal(await page.locator('[data-value="repeat"]').count(),0);
+    await click('go','feedback'); await click('skip-feedback');
+    assert.match(await page.locator('#app').innerText(),/Встреча не состоялась/);
+    assert.equal(await page.locator('[data-value="repeat"]').count(),0);
+    await reset(); await demo('feedback'); await click('skip-feedback');
+    await go('plans');
+    assert.match(await page.locator('#app').innerText(),/Завершение не подтверждено/);
+    await reset(); await demo('feedback');
+    await feedback('happened','Да'); await feedback('safe','Нет'); await feedback('need','Нет'); await click('save-feedback');
+    await click('go','safety'); await click('report-person','marta');
+    await page.locator('#report-reason').selectOption({label:'Нежелательные ухаживания'});
+    await page.locator('#report-text').fill('Проверка демо-обращения');
+    await click('submit-report'); await at('reportDone');
+    await go('profile'); assert.match(await page.locator('#app').innerText(),/Марта/);
+    await go('recommendations'); assert.equal(await page.locator('[data-value="coffee"]').count(),0);
+    console.log('PASS no-show and unsafe feedback, reporting, participant exclusion');
+
+    await reset(); await demo('matched'); await click('late');
+    assert.match(await page.locator('#app').innerText(),/опаздываешь/);
+    await click('go','cancel'); await click('cancel-book'); await at('cancelled');
+    await go('recommendations'); assert.equal(await page.locator('[data-value="coffee"]').count(),1);
+    console.log('PASS explicit cancellation releases the demo place');
+
+    await reset(); await go('lastMinute'); await click('select-event','walk'); await click('prepare-book');
+    assert.ok(await page.locator('#hold-countdown').count());
+    await page.evaluate(() => { state.hold.expiresAt = Date.now() - 1; updateCountdown(); });
+    await at('seatUnavailable');
+    await click('go','lastMinute'); await click('select-event','walk'); await click('prepare-book');
+    await page.locator('#agreement').check(); await click('confirm-book'); await at('matched');
+    assert.match(await page.locator('#app').innerText(),/Прогулка без спешки/);
+    console.log('PASS expired and confirmed last-minute reservations');
+
+    await reset(); await go('onboarding'); await page.locator('#age').selectOption('45–60'); await click('go','home'); await go('recommendations');
+    assert.match(await page.locator('#app').innerText(),/Только с твоего согласия/);
+    await click('select-event','coffee'); await click('prepare-book'); await page.locator('#agreement').check(); await click('confirm-book'); await at('matched');
+    console.log('PASS explicit age-range exception');
+
+    await reset(); await go('need'); await choose('intent','light'); await click('continue-intent'); await choose('company','one'); await click('go','boundaries'); await click('go','recommendations');
+    await click('select-event','one-coffee'); await click('prepare-book');
+    assert.equal(await page.locator('.person-row').count(),1);
+    await page.locator('#agreement').check(); await click('confirm-book');
+    assert.match(await page.locator('#app').innerText(),/Кофе и знакомство вдвоём/);
+    console.log('PASS one-to-one branch uses its actual event and participant');
+
+    const routes = ['welcome','onboarding','home','mood','need','format','boundaries','recommendations','experienceDetail','reservation','matched','chat','meeting','continueEvening','cancel','safety','report','feedback','summary','repeat','repeatPlan','repeatStatus','lastMinute','plans','profile','birth','reset'];
+    for (const width of [320,390,1440]) {
+      await page.setViewportSize({width,height:width > 900 ? 1000 : 844});
+      for (const route of routes) {
+        await go(route);
+        assert.ok(await page.locator('#app h1').count(),`heading missing: ${route}`);
+        const overflow = await page.locator('.screen').evaluate(el => el.scrollWidth > el.clientWidth + 1);
+        assert.equal(overflow,false,`horizontal overflow: ${route} at ${width}`);
+      }
+    }
+    await page.setViewportSize({width:1440,height:1000}); await go('home');
+    await page.screenshot({path:'/private/tmp/experience-v2-desktop.png'});
+    assert.deepEqual(errors,[]);
+    console.log('PASS all routes at 320, 390, 1440 px; no horizontal overflow or JavaScript errors');
+  } finally { await browser.close(); }
+})().catch(error => { console.error(error); process.exitCode = 1; });
