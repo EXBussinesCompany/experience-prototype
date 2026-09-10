@@ -9,7 +9,7 @@ try {
   if (saved && Array.isArray(saved.bookings) && Array.isArray(saved.excludedVenues) && Array.isArray(saved.blockedPeople)) state = { ...state, ...saved };
 } catch { /* A fresh demo works without session storage too. */ }
 let screen = new URLSearchParams(location.search).get('screen') || 'welcome';
-let history = [], selected = state.selected || 'coffee', error = '', reportTarget = 'venue', reportReason = '', chatDraft = '', questionIndex = 0;
+let history = [], selected = state.selected || 'coffee', error = '', reportTarget = 'venue', reportReason = '', chatDraft = '';
 const aliases = { radar:'lastMinute', radarProfile:'experienceDetail', zone:'lastMinute', inviteBuilder:'experienceDetail', offerSent:'reservation', signin:'onboarding', otp:'onboarding', personalityIntro:'mood', personalityQuiz:'mood', profileReady:'home', natalReady:'birth' };
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const currentEvent = () => M.eventById(selected) || M.events[0];
@@ -28,6 +28,8 @@ function bottomNav(active) {
   return `<nav class="bottom-nav" aria-label="Основная навигация">${[['home','⌂','Сегодня'],['lastMinute','◷','Скоро'],['plans','▤','Планы'],['profile','○','Профиль']].map(([id,symbol,label]) => `<button data-jump="${id}" ${active === id ? 'aria-current="page"' : ''} class="${active === id ? 'is-active' : ''}"><span>${symbol}</span><span>${label}</span></button>`).join('')}</nav>`;
 }
 function frame(title,content,{nav,back = true,step,paper = false} = {}) {
+  if (nav === 'home') content += lunarEntry();
+  if (nav === 'plans') content += `<h2 class="list-title">Личное</h2><div class="actions">${link('Мои даты из лунного календаря','lunarSaved')}</div>`;
   return `<section class="screen ${nav ? 'screen--with-nav' : ''} ${paper ? 'screen--ready' : ''}"><div class="demo-label">МАКЕТ · БЕЗ РЕАЛЬНЫХ БРОНЕЙ И СООБЩЕНИЙ</div><header class="topbar">${back ? button('←','back','','back','aria-label="Назад"') : '<span class="brand-lockup"><span class="brand-dot"></span>Experience</span>'}<strong>${title}</strong>${button('⌂','go','home','icon-button','aria-label="На главную"')}</header>${step ? `<div class="progress"><span style="width:${step * 25}%"></span></div>` : ''}${error ? `<p class="form-error" role="alert">${esc(error)}</p>` : ''}${content}${nav ? bottomNav(nav) : ''}</section>`;
 }
 function choice(key,value,title,description = '',symbol = '○',selection = state[key]) {
@@ -96,8 +98,7 @@ function meeting() {
   const b = booking(), e = currentEvent();
   if (!b) return activeRequired('Во время встречи');
   if (b.status === 'cancelled') return cancelled();
-  const questions = e.intent === 'deep' ? ['Какой небольшой выбор в последнее время оказался важным?','Что помогает тебе чувствовать себя на своём месте?','О чём тебе было бы интересно узнать у остальных?'] : ['Какое маленькое открытие порадовало тебя на этой неделе?','Куда в городе ты бы отвёл друга на свободный час?','Чему ты попробовал бы научиться просто ради удовольствия?'];
-  return frame('Вы встретились',`${heading('МОЖНО ПРОСТО БЫТЬ СОБОЙ',e.title,'Телефон может подождать. Вопросы ниже — только если хочется помочь разговору.')}<div class="conversation-card"><span>ВОПРОС ${questionIndex % questions.length + 1} / ${questions.length}</span><p>${questions[questionIndex % questions.length]}</p>${button('Другой вопрос','question','','text-button')}</div><p class="fine-print">Можно не отвечать. Советы — только по запросу.</p>${state.astro ? note('Тема по желанию','Какие описания твоего знака тебе близки, а с какими ты совсем не согласен? Можно пропустить.') : ''}${note('Встреча может закончиться вовремя',`${e.duration} — ориентир, не обязательство. Можно уйти раньше без объяснения личных причин.`)}<div class="actions">${link('Хочется продолжить вечер','continueEvening','soft-button')}${link('Завершить и оставить отзыв','feedback','primary')}${link('Мне некомфортно','safety','danger-button')}${link('Вернуться в чат','chat','text-button')}</div>`);
+  return frame('Вы встретились',`${heading('МОЖНО ПРОСТО БЫТЬ СОБОЙ',e.title,'Никакой обязательной программы. Можно просто общаться и не доставать телефон.')}${lunarEntry(true)}${note('Встреча может закончиться вовремя',`${e.duration} — ориентир, не обязательство. Можно уйти раньше без объяснения личных причин.`)}<div class="actions">${link('Хочется продолжить вечер','continueEvening','soft-button')}${link('Завершить и оставить отзыв','feedback','primary')}${link('Мне некомфортно','safety','danger-button')}${link('Вернуться в чат','chat','text-button')}</div>`);
 }
 function continueEvening() {
   const b = booking();
@@ -166,14 +167,52 @@ function plans() {
   return frame('',`${heading('МОИ ПЛАНЫ','Общение,<br>которое продолжается.')}${state.repeat ? `<button class="upcoming-banner" data-jump="repeatStatus"><span>${state.repeat.accepted ? 'ВРЕМЯ СОГЛАСОВАНО · МЕСТО ЕЩЁ НЕТ' : 'ЖДЁМ ОТВЕТЫ'}</span><strong>${state.repeat.format === 'walk' ? 'Новый маршрут пешком' : 'Кофе и разговор'}</strong><small>${state.repeat.time} →</small></button>` : ''}${state.bookings.length ? state.bookings.slice().reverse().map(b => `<button class="plan-row plan-button" data-action="open-booking" data-value="${b.eventId}"><div class="plan-date"><strong>${M.venues[M.eventById(b.eventId).venue].symbol}</strong></div><div><h3>${M.eventById(b.eventId).title}</h3><p>${M.eventById(b.eventId).time}</p><p>${statusLabels[b.status]}</p></div><span>›</span></button>`).join('') : `<div class="empty-illustration">▤</div><p class="lead">Здесь появятся подтверждённые встречи и предложения собраться снова.</p><div class="actions">${link('Выбрать первый опыт','mood','primary')}</div>`}`,{nav:'plans',back:false});
 }
 function profile() {
-  return frame('',`${heading('ДЕМО-ПРОФИЛЬ','Не начинаем<br>каждый раз с нуля.')}<div class="profile-facts"><span>Варшава</span><span>${state.language === 'pl' ? 'Польский' : 'Английский'}</span><span>До ${state.budget} zł</span><span>${state.age}</span></div><div class="actions">${link('Изменить основные предпочтения','onboarding')}</div><h2 class="list-title">Исключённые места</h2>${state.excludedVenues.length ? state.excludedVenues.map(id => `<div class="setting-row"><strong>${M.venues[id].name}</strong>${button('Вернуть','restore-venue',id,'text-button')}</div>`).join('') : '<p class="body-copy muted">Пока нет. Исключения применяются ко всему подбору.</p>'}<h2 class="list-title">Исключённые участники</h2>${state.blockedPeople.length ? state.blockedPeople.map(id => `<div class="setting-row"><strong>${M.people[id].name}</strong>${button('Вернуть','block',id,'text-button')}</div>`).join('') : '<p class="body-copy muted">Пока нет. Эти настройки не видны другим.</p>'}<h2 class="list-title">Дополнительный слой</h2><button class="action-tile" data-jump="birth"><span class="tile-icon">☾</span><span><strong>Астрологическая карта</strong><small>По желанию · не влияет на доступ к встречам</small></span><span>›</span></button>${note('Только в этой вкладке','Макет хранит демо-выборы в sessionStorage. Нет регистрации, геолокации, реальных сообщений, оплаты или службы поддержки.')}<div class="actions">${link('Сбросить демо','reset','text-button')}</div>`,{nav:'profile',back:false});
+  return frame('',`${heading('ДЕМО-ПРОФИЛЬ','Не начинаем<br>каждый раз с нуля.')}<div class="profile-facts"><span>Варшава</span><span>${state.language === 'pl' ? 'Польский' : 'Английский'}</span><span>До ${state.budget} zł</span><span>${state.age}</span></div><div class="actions">${link('Изменить основные предпочтения','onboarding')}</div><h2 class="list-title">Исключённые места</h2>${state.excludedVenues.length ? state.excludedVenues.map(id => `<div class="setting-row"><strong>${M.venues[id].name}</strong>${button('Вернуть','restore-venue',id,'text-button')}</div>`).join('') : '<p class="body-copy muted">Пока нет. Исключения применяются ко всему подбору.</p>'}<h2 class="list-title">Исключённые участники</h2>${state.blockedPeople.length ? state.blockedPeople.map(id => `<div class="setting-row"><strong>${M.people[id].name}</strong>${button('Вернуть','block',id,'text-button')}</div>`).join('') : '<p class="body-copy muted">Пока нет. Эти настройки не видны другим.</p>'}<h2 class="list-title">Для себя · по желанию</h2>${lunarEntry()}<button class="action-tile" data-jump="compatibility"><span class="tile-icon">◎</span><span><strong>Совместимость</strong><small>Возможность на будущее · пока без расчётов</small></span><span>›</span></button>${note('Только в этой вкладке','Макет хранит демо-выборы в sessionStorage. Нет регистрации, геолокации, реальных сообщений, оплаты или службы поддержки.')}<div class="actions">${link('Сбросить демо','reset','text-button')}</div>`,{nav:'profile',back:false});
 }
 function birth() {
-  return frame('',`${heading('НЕОБЯЗАТЕЛЬНО','Ещё один повод<br>поговорить.','Астрология — развлекательный слой. Она не доказывает совместимость и не заменяет твои ожидания и границы.')}<div class="astro-art">☾</div><label class="check-row"><input type="checkbox" data-bind="astro" ${state.astro ? 'checked' : ''}><span>Показывать астрологические темы для разговора</span></label>${state.astro ? note('Пример темы','Какие описания твоего знака тебе близки, а с какими ты совсем не согласен? Любой участник может пропустить вопрос.') : ''}<p class="fine-print">В этом макете натальная карта не рассчитывается. Дата и место рождения не запрашиваются.</p><div class="actions">${link('Сохранить и вернуться','profile','primary')}${link('Продолжить без астрологии','home')}</div>`);
+  return compatibility();
+}
+
+// Fixtures for interface exploration only: these are not lunar calculations.
+const lunarCategories = {
+  hair: {name:'Стрижка',symbol:'✂',ideas:['Обновить привычную форму','Оставить всё как нравится','Дать новой идее немного времени'],good:[12,15,18,24,28],slow:[10,13,20,26]},
+  care: {name:'Уход за собой',symbol:'✧',ideas:['Выделить время на привычный уход','Выбрать по своему настроению','Не спешить с радикальной сменой образа'],good:[10,14,19,23,29],slow:[12,17,25]},
+  social: {name:'Общение',symbol:'◎',ideas:['Позвать кого-то на кофе','Оставить привычный темп общения','Выбрать спокойный вечер без обязательств'],good:[11,15,18,22,27],slow:[13,20,26]},
+  creative: {name:'Творчество',symbol:'✎',ideas:['Попробовать небольшой творческий проект','Продолжить то, что уже нравится','Сначала собрать идеи, не торопясь с результатом'],good:[10,16,21,25,30],slow:[12,19,24]}
+};
+const lunarLabels = ['Благоприятно','Нейтрально','Не спешить'];
+function lunarState() {
+  if (!state.lunar || typeof state.lunar !== 'object' || Array.isArray(state.lunar)) state.lunar = {};
+  const l = state.lunar;
+  if (!Object.hasOwn(lunarCategories,l.category)) l.category = 'hair';
+  if (!Number.isInteger(l.day) || l.day < 1 || l.day > 30) l.day = 10;
+  if (!['today','dates'].includes(l.tab)) l.tab = 'today';
+  l.saved = Array.isArray(l.saved) ? [...new Set(l.saved.filter(key => typeof key === 'string' && /^(hair|care|social|creative):([12]\d|30)$/.test(key)))] : [];
+  return l;
+}
+function lunarStatus(category,day) {
+  const c = lunarCategories[category];
+  return c.good.includes(day) ? 0 : c.slow.includes(day) ? 2 : 1;
+}
+function lunarEntry(atTable = false) {
+  return `<section class="lunar-entry"><div class="lunar-entry-head"><span class="lunar-mini" aria-hidden="true">☾</span><div><p class="section-kicker">${atTable ? 'ЕСЛИ ИНТЕРЕСНО ВСЕМ' : 'МОЖНО И МЕЖДУ ВСТРЕЧАМИ'}</p><h2>Лунный календарь</h2></div></div><p>${atTable ? 'Посмотреть день вместе — по желанию. Без заданий, вопросов по кругу и обязательного участия.' : 'Сегодняшний день, уход за собой, общение и творчество. Выбирай то, что интересно тебе.'}</p>${link('Открыть календарь','lunar','soft-button')}<small>Астрологические трактовки · демо, не научный прогноз</small></section>`;
+}
+function lunar() {
+  const l = lunarState(), day = l.tab === 'today' ? 10 : l.day, c = lunarCategories[l.category], status = lunarStatus(l.category,day), key = `${l.category}:${day}`, saved = l.saved.includes(key);
+  const categories = `<div class="lunar-categories" aria-label="Категория календаря">${Object.entries(lunarCategories).map(([id,c]) => button(c.name,'lunar-category',id,'lunar-chip',`aria-pressed="${l.category === id}"`)).join('')}</div>`;
+  const calendar = `<h2 class="list-title">Сентябрь 2026</h2><div class="lunar-week" aria-hidden="true">${['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(x=>`<span>${x}</span>`).join('')}</div><div class="lunar-grid" aria-label="Демонстрационный календарь на сентябрь"><span></span>${Array.from({length:30},(_,i)=>{const d=i+1,s=lunarStatus(l.category,d);return button(`${d}<span aria-hidden="true">${['●','·','—'][s]}</span>`,'lunar-day',d,`lunar-day lunar-status-${s}`,`aria-pressed="${day===d}" aria-label="${d} сентября: ${lunarLabels[s]}${d===10?', сегодня в демо':''}"`);}).join('')}</div><div class="lunar-legend"><span>● Благоприятно</span><span>· Нейтрально</span><span>— Не спешить</span></div>`;
+  return frame('Лунный календарь',`${heading('ЛИЧНЫЙ РИТУАЛ · ПО ЖЕЛАНИЮ','Немного времени<br>для себя.')}<div class="lunar-tabs" aria-label="Вид календаря">${button('Сегодня','lunar-tab','today','lunar-chip',`aria-pressed="${l.tab==='today'}"`)}${button('Подобрать день','lunar-tab','dates','lunar-chip',`aria-pressed="${l.tab==='dates'}"`)}</div><div class="lunar-demo-notice">Демо-сегодня: 10 сентября 2026. Даты, фазы и трактовки — иллюстрации интерфейса, не расчёт.</div>${l.tab==='today'?`<div class="lunar-hero"><div class="lunar-disc" aria-hidden="true"></div><div><small>Пример фазы</small><h2>Убывающая Луна</h2><p>10 сентября · демо</p></div></div>`:''}${categories}${l.tab==='dates'?calendar:''}<section class="lunar-reading" aria-live="polite"><p class="section-kicker">${day} сентября · ${c.name}</p><span class="lunar-status-label lunar-status-${status}">${lunarLabels[status]}</span><h2>${c.ideas[status]}</h2><p>Пример трактовки по лунной традиции. Это не запрет и не обещание результата: ориентируйся на свои желания и обстоятельства.</p>${button(saved?'Дата сохранена ✓':day<10?'Прошедшая дата в демо':'Сохранить дату','lunar-save','','soft-button',saved||day<10?'disabled':'')}</section><p class="fine-print align-left">Календарь не даёт медицинских рекомендаций и не определяет, можно ли тебе встречаться с людьми.</p><div class="actions">${link(`Мои даты${l.saved.length?' · '+l.saved.length:''}`,'lunarSaved')}${link('Совместимость · в будущем','compatibility','text-button')}</div>`);
+}
+function lunarSaved() {
+  const l = lunarState();
+  return frame('Мои даты',`${heading('ИЗ ЛУННОГО КАЛЕНДАРЯ','Оставить<br>для себя.','Это личные заметки, не запись в салон и не бронь встречи.')}${l.saved.length?l.saved.slice().sort((a,b)=>Number(a.split(':')[1])-Number(b.split(':')[1])).map(key=>{const [category,day]=key.split(':');return `<div class="lunar-saved-row">${button(`<strong>${day} сентября</strong><small>${lunarCategories[category].name}</small>`,'lunar-open-saved',key,'lunar-saved-open')}${button('Убрать','lunar-remove',key,'text-button',`aria-label="Убрать ${day} сентября: ${lunarCategories[category].name}"`)}</div>`;}).join(''):note('Пока нет сохранённых дат','Выбери категорию и день в календаре.')}<p class="fine-print">Даты сохраняются только в этой вкладке. Уведомления не отправляются.</p><div class="actions">${link('Вернуться в календарь','lunar','primary')}${link('Мои встречи','plans','text-button')}</div>`);
+}
+function compatibility() {
+  return frame('Совместимость',`${heading('ВОЗМОЖНО В БУДУЩЕМ','Другой взгляд<br>на вашу динамику.','Добровольное сравнение натальных карт для тех, кому интересно. Пока это только направление для исследования.')}<div class="astro-art" aria-hidden="true">☾</div>${note('Не условие знакомства','Совместимость не будет ограничивать доступ к людям и встречам. Без рейтинга «лучших» и «худших» участников.')}${note('Только с взаимного согласия','Предполагается отдельное согласие каждого участника. В этом макете данные рождения не собираются и карты не рассчитываются.')}<p class="fine-print">Астрологическая интерпретация — не научная оценка отношений. Даты запуска нет.</p><div class="actions">${link('Пока посмотреть календарь','lunar','primary')}${link('Вернуться к встречам','home')}</div>`);
 }
 function reset() { return frame('',`${heading('НАЧАТЬ С ЧИСТОГО ЛИСТА','Сбросить<br>этот демо-сеанс?','Удалятся только локальные выборы, сообщения и планы в этой вкладке.')}<div class="actions">${button('Да, начать заново','reset-demo','','danger-button')}${link('Сохранить мои выборы','profile')}</div>`); }
 
-const screens = {welcome,onboarding,home,mood,need,format,boundaries,recommendations,experienceDetail,reservation,matched,chat,meeting,continueEvening,cancel,cancelled,safety,report,reportDone,feedback,summary,repeat,repeatPlan,repeatStatus,lastMinute,seatUnavailable,plans,profile,birth,reset};
+const screens = {welcome,onboarding,home,mood,need,format,boundaries,recommendations,experienceDetail,reservation,matched,chat,meeting,continueEvening,cancel,cancelled,safety,report,reportDone,feedback,summary,repeat,repeatPlan,repeatStatus,lastMinute,seatUnavailable,plans,profile,birth,lunar,lunarSaved,compatibility,reset};
 function render(preserveScroll = false) {
   const scroll = preserveScroll ? app.querySelector('.screen')?.scrollTop || 0 : 0;
   screen = aliases[screen] || screen;
@@ -269,7 +308,16 @@ document.addEventListener('click',ev => {
       b.status = b.feedback.happened === 'Нет' ? 'missed' : b.feedback.happened ? 'completed' : 'feedbackPending';
       navigate('summary');
     } break;
-    case 'question': questionIndex++; render(true); break;
+    case 'lunar-category': if (Object.hasOwn(lunarCategories,value)) { lunarState().category = value; render(true); } break;
+    case 'lunar-tab': if (['today','dates'].includes(value)) { lunarState().tab = value; render(); } break;
+    case 'lunar-day': if (Number.isInteger(Number(value)) && Number(value)>=1 && Number(value)<=30) { lunarState().day = Number(value); render(true); } break;
+    case 'lunar-save': {
+      const l=lunarState(), day=l.tab==='today'?10:l.day, key=`${l.category}:${day}`;
+      if (day>=10 && !l.saved.includes(key)) { l.saved.push(key); render(true); showToast('Дата сохранена в этой вкладке. Без брони и уведомлений.'); }
+      break;
+    }
+    case 'lunar-remove': { const l=lunarState(); l.saved=l.saved.filter(key=>key!==value); render(true); break; }
+    case 'lunar-open-saved': if (lunarState().saved.includes(value)) { const [category,day]=value.split(':'); Object.assign(state.lunar,{category,day:Number(day),tab:'dates'}); navigate('lunar'); } break;
     case 'continue-evening': if (b && !b.continuation) { b.continuation = true; b.messages.push({text:'В демо: предложено продолжить в тихом кафе рядом. Время и место нужно согласовать со всеми.'}); render(true); } break;
     case 'waitlist': state.waitlisted = !state.waitlisted; render(true); showToast(state.waitlisted ? 'Демо-запрос сохранён в этой вкладке.' : 'Демо-запрос отменён.'); break;
     case 'repeat-next': if (!b?.repeatPeople.length) fail('Выбери хотя бы одного участника или вернись к планам.'); else navigate('repeatPlan'); break;

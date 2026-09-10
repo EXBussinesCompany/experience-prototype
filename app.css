@@ -17,6 +17,42 @@
   --serif: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
 }
 
+/* Optional lunar-calendar mockup; the data is illustrative, not computed. */
+.lunar-entry { margin:24px 0; padding:22px; border-radius:24px; background:#e2e9d8; }
+.lunar-entry-head { display:flex; align-items:center; gap:14px; }
+.lunar-entry .section-kicker { font-size:9px; margin:0 0 8px; }
+.lunar-entry h2 { font-family:var(--serif); font-size:25px; margin:0; }
+.lunar-entry p { font-size:13px; line-height:1.6; }
+.lunar-entry small { display:block; margin-top:12px; font-size:11px; line-height:1.5; color:#4b5748; }
+.lunar-mini { font-size:40px; }
+.lunar-tabs { display:flex; gap:6px; margin:22px 0 14px; padding:5px; border-radius:16px; background:var(--paper-deep); }
+.lunar-tabs button { flex:1; }
+.lunar-chip { padding:12px; border:1px solid var(--line); border-radius:12px; background:var(--surface); font-size:12px; min-height:44px; }
+.lunar-chip[aria-pressed="true"] { background:var(--ink); border-color:var(--ink); color:var(--surface); }
+.lunar-demo-notice { color:var(--muted); font-size:11px; line-height:1.5; margin-bottom:18px; }
+.lunar-hero { display:flex; align-items:center; gap:20px; padding:28px 20px; background:#27372f; color:#fffdf8; border-radius:24px; }
+.lunar-hero h2 { font:25px/1.2 var(--serif); margin:8px 0; }
+.lunar-hero p,.lunar-hero small { font-size:12px; margin:0; }
+.lunar-disc { width:72px; height:72px; flex:0 0 72px; border-radius:50%; background:#efe4c9; box-shadow:inset -29px 0 0 #465649; transform:rotate(-18deg); }
+.lunar-categories { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:20px 0; }
+.lunar-week,.lunar-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px; }
+.lunar-week { text-align:center; font-size:11px; color:var(--muted); margin:12px 0; }
+.lunar-day { padding:8px 0; min-height:48px; border:1px solid transparent; border-radius:10px; font-size:13px; }
+.lunar-day span { display:block; font-size:10px; margin-top:3px; }
+.lunar-status-0 { background:#e1ebd8; color:#355327; }
+.lunar-status-1 { background:#ede8df; color:#5d5d53; }
+.lunar-status-2 { background:#f3dfd4; color:#824124; }
+.lunar-day[aria-pressed="true"] { outline:2px solid var(--ink); outline-offset:-2px; font-weight:700; }
+.lunar-legend { display:flex; flex-wrap:wrap; gap:10px; font-size:10px; margin:16px 0; color:var(--muted); }
+.lunar-reading { padding:22px; border:1px solid var(--line); background:var(--surface); border-radius:22px; margin:20px 0; }
+.lunar-reading h2 { font:28px/1.18 var(--serif); margin:16px 0; }
+.lunar-reading p { font-size:13px; line-height:1.6; }
+.lunar-reading .section-kicker { font-size:10px; }
+.lunar-status-label { display:inline-block; padding:7px 10px; border-radius:8px; font-size:12px; }
+.lunar-saved-row { display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--line); padding:12px 0; }
+.lunar-saved-open { flex:1; min-width:0; text-align:left; padding:12px 0; background:none; border:0; }
+.lunar-saved-open strong,.lunar-saved-open small { display:block; margin:4px 0; }
+.lunar-saved-open small { color:var(--muted); }
 /* v02: extend the established paper, ink and coral visual language. */
 select { font: inherit; color: inherit; }
 select:focus-visible { outline: 3px solid var(--sky); outline-offset: 3px; }

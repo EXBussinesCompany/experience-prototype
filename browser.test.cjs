@@ -56,7 +56,26 @@ const base = process.env.PROTOTYPE_URL || 'http://127.0.0.1:64590/';
     await page.reload();
     assert.match(await page.locator('.message--mine').innerText(),/Привет!/);
     await click('arrive');
-    await click('question');
+    assert.equal(await page.locator('[data-action="question"]').count(),0);
+    await click('go','lunar');
+    await at('lunar');
+    await click('lunar-category','social');
+    await click('lunar-tab','dates');
+    await click('lunar-day','18');
+    await click('lunar-save');
+    assert.equal(await page.locator('[data-action="lunar-save"]').isDisabled(),true);
+    assert.match(await page.locator('#app').innerText(),/Дата сохранена/);
+    await page.reload();
+    assert.match(await page.locator('#app').innerText(),/18 сентября/);
+    await click('go','lunarSaved');
+    assert.equal(await page.locator('[data-action="lunar-open-saved"]').count(),1);
+    await click('lunar-open-saved','social:18');
+    await click('lunar-tab','today');
+    assert.match(await page.locator('#app').innerText(),/10 сентября/);
+    await click('go','compatibility');
+    assert.match(await page.locator('#app').innerText(),/В БУДУЩЕМ/);
+    assert.equal(await page.locator('#app input').count(),0);
+    await go('meeting');
     await click('go','continueEvening');
     await click('continue-evening');
     await click('go','feedback');
@@ -128,7 +147,18 @@ const base = process.env.PROTOTYPE_URL || 'http://127.0.0.1:64590/';
     assert.match(await page.locator('#app').innerText(),/Кофе и знакомство вдвоём/);
     console.log('PASS one-to-one branch uses its actual event and participant');
 
-    const routes = ['welcome','onboarding','home','mood','need','format','boundaries','recommendations','experienceDetail','reservation','matched','chat','meeting','continueEvening','cancel','safety','report','feedback','summary','repeat','repeatPlan','repeatStatus','lastMinute','plans','profile','birth','reset'];
+    await reset(); await go('home'); await click('go','lunar');
+    await click('lunar-tab','dates'); await click('lunar-day','2');
+    assert.equal(await page.locator('[data-action="lunar-save"]').isDisabled(),true);
+    await click('lunar-day','20'); await click('lunar-save');
+    await click('go','lunarSaved'); await click('lunar-remove','hair:20');
+    assert.match(await page.locator('#app').innerText(),/Пока нет сохранённых дат/);
+    await go('lunar'); await click('lunar-tab','dates'); await click('lunar-day','20'); await click('lunar-save');
+    await reset(); await go('lunarSaved');
+    assert.equal(await page.locator('[data-action="lunar-open-saved"]').count(),0);
+    console.log('PASS lunar entry points, date/category persistence, idempotent saves, past dates, remove and reset');
+
+    const routes = ['welcome','onboarding','home','mood','need','format','boundaries','recommendations','experienceDetail','reservation','matched','chat','meeting','continueEvening','cancel','safety','report','feedback','summary','repeat','repeatPlan','repeatStatus','lastMinute','plans','profile','birth','lunar','lunarSaved','compatibility','reset'];
     for (const width of [320,390,1440]) {
       await page.setViewportSize({width,height:width > 900 ? 1000 : 844});
       for (const route of routes) {
