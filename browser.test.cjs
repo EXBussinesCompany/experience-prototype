@@ -17,6 +17,17 @@ const base = process.env.PROTOTYPE_URL || 'http://127.0.0.1:64590/';
   const feedback = async (key,value) => choose(key,value);
 
   try {
+    for (const viewport of [{width:320,height:568},{width:390,height:844},{width:1440,height:1000}]) {
+      await page.setViewportSize(viewport);
+      await go('home');
+      const visibleWithoutScroll = await page.locator('#app [data-action="go"][data-value="lunar"]').evaluate(el => {
+        const rect = el.getBoundingClientRect(), screen = el.closest('.screen'), bounds = screen.getBoundingClientRect();
+        return screen.scrollTop === 0 && rect.top >= Math.max(0,bounds.top) && rect.bottom <= Math.min(innerHeight,bounds.bottom);
+      });
+      assert.ok(visibleWithoutScroll,`calendar hidden before scrolling: ${viewport.width}x${viewport.height}`);
+      await click('go','lunar'); await at('lunar');
+    }
+    await page.setViewportSize({width:390,height:844});
     await reset();
     await page.screenshot({path:'/private/tmp/experience-v2-welcome.png'});
     await click('go','onboarding');

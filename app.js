@@ -28,7 +28,7 @@ function bottomNav(active) {
   return `<nav class="bottom-nav" aria-label="Основная навигация">${[['home','⌂','Сегодня'],['lastMinute','◷','Скоро'],['plans','▤','Планы'],['profile','○','Профиль']].map(([id,symbol,label]) => `<button data-jump="${id}" ${active === id ? 'aria-current="page"' : ''} class="${active === id ? 'is-active' : ''}"><span>${symbol}</span><span>${label}</span></button>`).join('')}</nav>`;
 }
 function frame(title,content,{nav,back = true,step,paper = false} = {}) {
-  if (nav === 'home') content += lunarEntry();
+  if (nav === 'home') content = button('<span class="lunar-mini" aria-hidden="true">☾</span><span><strong>Лунный календарь</strong><small>Сегодня и подбор даты · по желанию</small></span><span aria-hidden="true">›</span>','go','lunar','lunar-home-shortcut') + content;
   if (nav === 'plans') content += `<h2 class="list-title">Личное</h2><div class="actions">${link('Мои даты из лунного календаря','lunarSaved')}</div>`;
   return `<section class="screen ${nav ? 'screen--with-nav' : ''} ${paper ? 'screen--ready' : ''}"><div class="demo-label">МАКЕТ · БЕЗ РЕАЛЬНЫХ БРОНЕЙ И СООБЩЕНИЙ</div><header class="topbar">${back ? button('←','back','','back','aria-label="Назад"') : '<span class="brand-lockup"><span class="brand-dot"></span>Experience</span>'}<strong>${title}</strong>${button('⌂','go','home','icon-button','aria-label="На главную"')}</header>${step ? `<div class="progress"><span style="width:${step * 25}%"></span></div>` : ''}${error ? `<p class="form-error" role="alert">${esc(error)}</p>` : ''}${content}${nav ? bottomNav(nav) : ''}</section>`;
 }

@@ -18,6 +18,11 @@
 }
 
 /* Optional lunar-calendar mockup; the data is illustrative, not computed. */
+.lunar-home-shortcut { display:flex; align-items:center; gap:12px; width:100%; margin:0 0 22px; padding:14px 16px; border:1px solid #c4d3b9; border-radius:20px; background:#e2e9d8; color:var(--ink); text-align:left; }
+.lunar-home-shortcut > span:nth-child(2) { flex:1; min-width:0; }
+.lunar-home-shortcut strong { display:block; font:21px/1.2 var(--serif); }
+.lunar-home-shortcut small { display:block; margin-top:5px; font-size:11px; line-height:1.4; color:#4b5748; }
+.lunar-home-shortcut .lunar-mini { font-size:32px; }
 .lunar-entry { margin:24px 0; padding:22px; border-radius:24px; background:#e2e9d8; }
 .lunar-entry-head { display:flex; align-items:center; gap:14px; }
 .lunar-entry .section-kicker { font-size:9px; margin:0 0 8px; }
