@@ -6,7 +6,8 @@
   <meta name="theme-color" content="#11132c">
   <title>Experience — Living Constellation</title>
   <meta name="description" content="Interaktywny prototyp Experience: od codziennego impulsu do wzajemnej kontynuacji po spotkaniu.">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=unified-26">
+  <link rel="stylesheet" href="one-off-flow.css?v=unified-26">
 </head>
 <body>
   <main class="prototype-shell">
@@ -15,7 +16,6 @@
       <p class="guide-kicker">LIVING CONSTELLATION / FIRST JOURNEY</p>
       <h1>Najpierw Ty.<br>Potem — <em>Twój krąg.</em></h1>
       <p class="guide-copy">Ludzie pojawiają się stopniowo i dopiero po przyjęciu zaproszenia. Abstrakcyjne awatary nie tworzą fałszywych oczekiwań wobec wyglądu.</p>
-      <p><a href="../../one-off/?lang=pl" style="display:block;padding:16px;border:1px solid currentColor;border-radius:12px;color:inherit;text-decoration:none">Nowy prototyp: jednorazowe spotkania →<br><small>Kolacja jutro lub pojutrze · PL / EN</small></a></p>
       <nav class="flow-nav" aria-label="Ekrany prototypu">
         <button data-route="welcome"><span>01</span><b>Pierwsze wejście</b><small>obietnica bez obcych osób</small></button>
         <button data-route="profile"><span>02</span><b>Ustawienia</b><small>miasto, język i dostępność</small></button>
@@ -25,6 +25,7 @@
         <button data-route="home"><span>06</span><b>Strona główna</b><small>Księżyc dziś i potwierdzony plan</small></button>
         <button data-route="circle"><span>07</span><b>Twój krąg</b><small>potwierdzeni uczestnicy</small></button>
         <button data-route="plan"><span>08</span><b>Plan</b><small>miejsce, budżet i szczegóły</small></button>
+        <button data-route="oneoff"><span>08a</span><b>Jednorazowe spotkanie</b><small>kolacja, kawa lub spacer</small></button>
         <button data-route="meeting"><span>09</span><b>Spotkanie</b><small>telefon można odłożyć</small></button>
         <button data-route="after"><span>10</span><b>Po spotkaniu</b><small>w domu, bez presji grupy</small></button>
         <button data-route="account"><span>11</span><b>Profil</b><small>ustawienia i historia spotkań</small></button>
@@ -45,6 +46,7 @@
   </main>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="app.js"></script>
+  <script src="one-off-flow.js?v=unified-26"></script>
+  <script src="app.js?v=unified-26"></script>
 </body>
 </html>

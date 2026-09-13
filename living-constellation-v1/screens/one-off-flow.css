@@ -1,0 +1,136 @@
+/* Flow-local styles: never redefine the shared shell, tabs or language control. */
+.oneoff-ui { --bg:var(--night); --surface:var(--panel); --raised:var(--panel-soft); --text:var(--ink); --accent:var(--mint); --accent-bg:#263b5f; --warm:#d6b99b; --success:#b7d2ca; --error:#ffb4ab; line-height:1.5; }
+.oneoff-ui h1 { font-size:31px;line-height:1.17;letter-spacing:-.8px;font-weight:570;margin:12px 0 }
+.oneoff-ui h2 { font-size:19px;line-height:1.3;font-weight:600;letter-spacing:-.2px;margin:0 0 8px }
+.oneoff-ui h3 { font-size:15px;margin:0 0 5px;font-weight:650 }
+.oneoff-ui p { margin:0 0 16px }
+.oneoff-ui .muted, .oneoff-ui .intro { color:var(--muted) }
+.oneoff-ui .intro { font-size:14px;line-height:1.6;margin-bottom:24px }
+.oneoff-ui .micro { font-size:12px;color:var(--muted);line-height:1.55 }
+.oneoff-ui .tag { font-size:11px;letter-spacing:.5px;color:var(--accent);font-weight:650;text-transform:uppercase }
+.oneoff-ui .row { display:flex;align-items:center;gap:12px }
+.oneoff-ui .between { justify-content:space-between }
+.oneoff-ui .section { margin-top:27px }
+.oneoff-ui .section-title { display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px }
+.oneoff-ui .section-title h2 { font-size:15px!important;margin:0!important }
+.oneoff-ui .section-title span { font-size:11px;color:var(--muted) }
+.oneoff-ui .primary, .oneoff-ui .secondary, .oneoff-ui .text-button { width:100%;border-radius:13px;padding:14px 16px;font-size:15px;font-weight:650;min-height:50px }
+.oneoff-ui .primary { border:1px solid var(--accent);background:var(--accent);color:#10213d }
+.oneoff-ui .primary:hover:not(:disabled) { background:#c2d7ff }
+.oneoff-ui .secondary { border:1px solid var(--line);background:transparent }
+.oneoff-ui .secondary:hover:not(:disabled) { background:var(--raised) }
+.oneoff-ui .text-button { background:none;border:0;color:var(--muted);font-size:13px }
+.oneoff-ui .actions { display:grid;gap:9px;margin-top:26px }
+.oneoff-ui .back { background:none;border:0;color:var(--muted);padding:0;display:flex;align-items:center;gap:7px;min-height:40px;font-size:12px;margin:-10px 0 12px }
+.oneoff-ui .step-dots { display:flex;gap:5px }
+.oneoff-ui .step-dots i { height:3px;width:22px;border-radius:3px;background:var(--line) }
+.oneoff-ui .step-dots i.on { background:var(--accent) }
+.oneoff-ui .choices { display:grid;grid-template-columns:repeat(3,1fr);gap:9px }
+.oneoff-ui .choice { display:flex;flex-direction:column;align-items:flex-start;gap:15px;text-align:left;border:1px solid var(--line);border-radius:15px;background:var(--surface);padding:16px 12px;min-height:112px;font-size:13px;position:relative }
+.oneoff-ui .choice svg { color:var(--muted) }
+.oneoff-ui .choice[aria-pressed=true] { border-color:var(--accent);background:var(--accent-bg);box-shadow:inset 0 0 0 1px var(--accent) }
+.oneoff-ui .choice[aria-pressed=true] svg { color:var(--accent) }
+.oneoff-ui .choice .tick { position:absolute;right:8px;top:8px;color:var(--accent) }
+.oneoff-ui .date-options { display:grid;grid-template-columns:1fr 1fr;gap:10px }
+.oneoff-ui .date-choice { text-align:left;padding:15px;border:1px solid var(--line);border-radius:13px;background:transparent;display:flex;align-items:center;gap:10px }
+.oneoff-ui .date-choice strong { display:block;font-size:14px }
+.oneoff-ui .date-choice small { color:var(--muted);font-size:12px }
+.oneoff-ui .check { width:19px;height:19px;flex-shrink:0;border:1px solid #6d7e98;border-radius:5px;display:grid;place-items:center }
+.oneoff-ui .date-choice[aria-pressed=true] { background:var(--surface);border-color:var(--accent) }
+.oneoff-ui .date-choice[aria-pressed=true] .check { background:var(--accent);color:var(--bg);border-color:var(--accent) }
+.oneoff-ui .notice { display:flex;gap:11px;border-radius:12px;padding:14px 15px;background:#142136;font-size:12px;color:var(--muted);line-height:1.6;margin-top:19px }
+.oneoff-ui .notice svg { flex-shrink:0;margin-top:2px;color:var(--accent) }
+.oneoff-ui .notice p { margin:0 }
+.oneoff-ui .notice strong { color:var(--text);font-weight:550 }
+.oneoff-ui .field { display:grid;gap:8px;margin-top:20px;font-size:13px;font-weight:550 }
+.oneoff-ui .field select { width:100%;min-height:49px;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:11px;padding:11px 13px }
+.oneoff-ui .segmented { display:flex;gap:8px }
+.oneoff-ui .segmented button { flex:1;border:1px solid var(--line);border-radius:10px;min-height:44px;background:transparent;font-size:13px }
+.oneoff-ui .segmented button[aria-pressed=true] { border-color:var(--accent);color:var(--accent);background:var(--accent-bg) }
+.oneoff-ui .summary { padding:4px 0 }
+.oneoff-ui .summary-line { display:flex;gap:12px;align-items:flex-start;border-bottom:1px solid #28374d;padding:16px 0 }
+.oneoff-ui .summary-line:last-child { border-bottom:0 }
+.oneoff-ui .summary-line svg { color:var(--accent);margin-top:2px;flex-shrink:0 }
+.oneoff-ui .summary-line small { display:block;color:var(--muted);font-size:12px;margin-bottom:4px }
+.oneoff-ui .summary-line strong { font-size:14px;font-weight:550 }
+.oneoff-ui .deadline { border-left:2px solid var(--accent);padding:4px 0 4px 14px;margin:22px 0 }
+.oneoff-ui .deadline small { display:block;color:var(--muted);font-size:12px }
+.oneoff-ui .deadline strong { font-size:17px;font-weight:550;display:block;margin-top:3px }
+.oneoff-ui .orbital { height:180px;position:relative;margin:16px 0 20px;display:grid;place-items:center;overflow:hidden }
+.oneoff-ui .orbit { width:260px;height:125px;border:1px solid #3d506d;border-radius:50%;position:absolute;transform:rotate(-17deg) }
+.oneoff-ui .orbit.two { transform:rotate(57deg);width:185px;height:160px;border-color:#2e405a }
+.oneoff-ui .core { width:66px;height:66px;border-radius:50%;background:var(--accent-bg);border:1px solid #6a87b2;display:grid;place-items:center;color:var(--accent);box-shadow:0 0 0 11px #afcbff06 }
+.oneoff-ui .orb-dot { position:absolute;width:11px;height:11px;border-radius:50%;background:var(--accent) }
+.oneoff-ui .orb-dot.one { top:39px;left:23% }
+.oneoff-ui .orb-dot.two { right:22%;bottom:31px;background:var(--warm) }
+.oneoff-ui .orb-dot.three { top:43px;right:21%;background:var(--success) }
+.oneoff-ui .status-icon { height:120px;display:grid;place-items:center }
+.oneoff-ui .status-icon .core { width:70px;height:70px }
+.oneoff-ui .status-icon.empty .core { color:var(--warm);background:#2d2a2c;border-color:#8a786d }
+.oneoff-ui .progress-list { list-style:none;padding:0;margin:24px 0 }
+.oneoff-ui .progress-list li { display:flex;align-items:flex-start;gap:12px;padding-bottom:23px;position:relative }
+.oneoff-ui .progress-list li:not(:last-child):after { content:"";position:absolute;left:11px;top:25px;bottom:3px;width:1px;background:var(--line) }
+.oneoff-ui .progress-list li:last-child { padding-bottom:0 }
+.oneoff-ui .progress-list .node { border:1px solid var(--line);border-radius:50%;height:24px;width:24px;display:grid;place-items:center;flex-shrink:0;color:var(--muted);font-size:11px }
+.oneoff-ui .progress-list .done .node, .oneoff-ui .progress-list .current .node { background:var(--accent-bg);border-color:var(--accent);color:var(--accent) }
+.oneoff-ui .progress-list strong { font-size:14px;font-weight:550;display:block }
+.oneoff-ui .progress-list small { font-size:12px;color:var(--muted);display:block;margin-top:3px }
+.oneoff-ui .chip-row { display:flex;flex-wrap:wrap;gap:7px }
+.oneoff-ui .chip { font-size:11px;color:var(--muted);padding:6px 10px;border:1px solid var(--line);border-radius:20px }
+.oneoff-ui .group-count { display:flex;align-items:center;justify-content:space-between;gap:15px;padding:18px;background:var(--surface);border-radius:15px;margin:20px 0 }
+.oneoff-ui .group-count strong { font-size:25px;font-weight:550;letter-spacing:-.8px }
+.oneoff-ui .group-count small { font-size:12px;color:var(--muted);display:block;max-width:170px }
+.oneoff-ui .group-count svg { color:var(--accent) }
+.oneoff-ui .venue { border-radius:19px;border:1px solid var(--line);padding:21px;background:var(--surface);margin-top:22px }
+.oneoff-ui .venue-top { display:flex;align-items:center;gap:10px;color:var(--warm);font-size:12px;margin-bottom:18px }
+.oneoff-ui .venue h2 { font-size:23px!important }
+.oneoff-ui .venue p { color:var(--muted);font-size:13px;margin-bottom:18px }
+.oneoff-ui .venue-details { display:grid;gap:12px;font-size:14px }
+.oneoff-ui .venue-details>div { display:flex;gap:10px;align-items:center }
+.oneoff-ui .venue-details svg { color:var(--accent);flex-shrink:0 }
+.oneoff-ui .plain-list { display:grid;gap:16px;margin:22px 0 }
+.oneoff-ui .plain-list>div { display:flex;gap:12px;font-size:14px }
+.oneoff-ui .plain-list svg { flex-shrink:0;color:var(--accent) }
+.oneoff-ui dialog { background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:22px;padding:25px;max-width:370px;width:calc(100% - 32px) }
+.oneoff-ui dialog::backdrop { background:#030915c9;backdrop-filter:blur(4px) }
+.oneoff-ui dialog h2 { font-size:22px;line-height:1.3;margin:0 0 13px }
+.oneoff-ui dialog p { font-size:14px;color:var(--muted) }
+.oneoff-ui dialog .actions { margin-top:23px }
+.oneoff-ui .error-text { color:var(--error);font-size:12px;margin-top:9px }
+.oneoff-ui .result-date { color:var(--accent);font-size:14px }
+.oneoff-ui svg { width:22px;height:22px;vertical-align:middle }
+.oneoff-ui .small-icon { width:16px;height:16px }
+.oneoff-ui h1 { font-size:28px }
+.oneoff-ui .choice { padding:13px 9px }
+.oneoff-ui .date-choice { padding:12px 9px }
+.oneoff-ui .date-choice strong { font-size:13px }
+.oneoff-ui button, .oneoff-ui select { font:inherit; cursor:pointer; }
+.oneoff-ui button:disabled { opacity:.5; cursor:default; }
+.oneoff-ui .back { width:auto; height:auto; position:static; }
+.oneoff-ui .progress-list .node { position:static; box-shadow:none; cursor:default; }
+.oneoff-ui .orbital .orbit { inset:auto; }
+.history-date svg { width:22px; height:22px; }
+.oneoff-ui .choice { font-size:13px; }
+.oneoff-ui .primary, .oneoff-ui .secondary, .oneoff-ui .text-button { font-size:14px; }
+.oneoff-ui .field select { min-width:0; font-size:14px; }
+.oneoff-ui .row { margin-bottom:16px; }
+.oneoff-ui .oo-simulation { margin-top:32px; padding-top:18px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; }
+.oneoff-ui .oo-simulation summary { cursor:pointer; padding:8px 0; }
+.oneoff-ui .oo-simulation p { margin:12px 0; }
+.oneoff-ui .oo-simulation > div { display:grid; gap:10px; }
+.oneoff-ui .oo-simulation button { font-size:12px; padding:10px; min-height:44px; border:1px solid var(--line); background:transparent; }
+.oneoff-ui .oo-contact { display:flex; gap:12px; align-items:center; min-height:48px; margin-bottom:10px; padding:10px; border:1px solid var(--line); border-radius:10px; }
+.oneoff-ui .oo-contact input { width:20px; height:20px; accent-color:var(--accent); }
+dialog.oneoff-ui { color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:22px; padding:24px; max-width:370px; width:calc(100% - 32px); max-height:85dvh; overflow:auto; }
+dialog.oneoff-ui::backdrop { background:#030915c9; }
+dialog.oneoff-ui h2 { font-size:22px; margin:0 0 16px; }
+.oneoff-entry { margin-top:24px; margin-bottom:24px; }
+.oneoff-entry small { display:block; font-size:12px; line-height:1.5; color:var(--muted); margin-top:12px; }
+.plan-circle-label { display:block; margin:32px 0 18px; color:var(--mint); font-size:12px; font-weight:700; letter-spacing:.08em; }
+.oneoff-history-heading { margin:24px 0 12px; font-size:16px; }
+@media (max-width:360px) {
+ .oneoff-ui .date-options { grid-template-columns:1fr; }
+ .oneoff-ui .choice { padding:14px 8px; }
+ .oneoff-ui h1 { font-size:28px; }
+}
+@media (prefers-reduced-motion:reduce) { .oneoff-ui *, .oneoff-ui *::before, .oneoff-ui *::after { animation:none!important; transition:none!important; } }

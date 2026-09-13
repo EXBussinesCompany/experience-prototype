@@ -39,6 +39,16 @@ const state = {
   submitted: initialDemo === 'returning'
 };
 
+state.oneOff = OneOffFlow.create({
+  language: () => state.language,
+  navigate: route => go(route),
+  refresh: preserveScroll => {
+    const scrollTop = app.querySelector('.screen')?.scrollTop || 0;
+    render();
+    if (preserveScroll) app.querySelector('.screen')?.scrollTo(0, scrollTop);
+  }
+});
+
 function avatar(person, modifier = '') {
   const tone = person?.tone || 'empty';
   const label = person?.name || 'Wolne miejsce';
@@ -74,6 +84,8 @@ function demoControls() {
 }
 
 const translations = {
+  'Jednorazowe spotkanie': 'One-off meeting',
+  'kolacja, kawa lub spacer': 'dinner, coffee or a walk',
   "NOWY UŻYTKOWNIK": "NEW USER",
   "KRĄG GOTOWY": "CIRCLE READY",
   "PO SPOTKANIACH": "AFTER MEETINGS",
@@ -699,6 +711,7 @@ function home() {
     <div class="home-head"><span class="logo">experience°</span><button class="round-button notification" aria-label="Powiadomienia">✦</button></div>
     <div class="home-copy"><p class="eyebrow">DZISIAJ / WARSZAWA</p><h1 class="display">Co możesz zrobić dziś.<br><strong>Bez czekania na krąg.</strong></h1><p class="lead">Zacznij od małego kroku z dzisiejszej podpowiedzi. Dobór ludzi nie blokuje reszty aplikacji.</p></div>
     <button class="moon-today-card" data-route="lunar"><span class="moon-disc" aria-hidden="true"><i></i></span><span><small>KSIĘŻYC DZISIAJ · NÓW</small><b>Mały pierwszy krok</b><em>Nie blokuje planów ani spotkań</em></span><i>›</i></button>
+    ${state.oneOff.entry()}
     <div class="today-next-card"><span>${nextStep.label}</span><strong>${nextStep.title}</strong><p>${nextStep.copy}</p><button class="secondary" data-route="${nextStep.route}">${nextStep.action}</button></div>
   </section>${nav('home')}`;
 }
@@ -737,6 +750,19 @@ function circle() {
 }
 
 function plan() {
+  // Both modes are visible in Plan, but keep independent participants and outcomes.
+  const circleHtml = circlePlan();
+  const topbarEnd = circleHtml.indexOf('</div>') + '</div>'.length;
+  return circleHtml.slice(0, topbarEnd) + state.oneOff.entry()
+    + `<span class="plan-circle-label">${state.language === 'pl' ? 'STAŁY KRĄG' : 'REGULAR CIRCLE'}</span>`
+    + circleHtml.slice(topbarEnd);
+}
+
+function oneoff() {
+  return `<section class="screen oneoff-screen">${topbar()}<div class="oneoff-ui">${state.oneOff.content()}</div></section>${nav('plan')}`;
+}
+
+function circlePlan() {
   const noCircle = state.formingStage === 0;
   if (state.formingStage !== 3) return `<section class="screen pending-plan-screen">
     ${topbar('experience°', false, 'i')}
@@ -803,13 +829,13 @@ function after() {
 
 function account() {
   const paymentLabels = { offer: 'Nieaktywna', processing: 'W toku', declined: 'Odrzucona', active: 'Aktywna', cancelled: 'Anulowana', expired: 'Wygasła', restore: 'Przywracanie' };
-  const history = state.accountEmpty ? `<div class="empty-history"><span>◎</span><h3>Tu pojawią się Twoje spotkania</h3><p>Historia jest teraz pusta. Nie pokazujemy przykładowych ludzi ani wydarzeń jako prawdziwych danych.</p></div>` : `<button class="history-card" data-route="history"><span class="history-date"><b>05</b>WRZ</span><span class="history-copy"><b>Krąg 03 · Kawiarnia Relaks</b><small>Mokotów · 5 osób · zakończone</small></span><i>›</i></button><button class="history-card" data-route="history"><span class="history-date"><b>29</b>SIE</span><span class="history-copy"><b>Krąg 02 · Bar Studio</b><small>Śródmieście · 4 osoby · zakończone</small></span><i>›</i></button>`;
+  const history = state.accountEmpty ? (state.oneOff.historyCount() ? '' : `<div class="empty-history"><span>◎</span><h3>Tu pojawią się Twoje spotkania</h3><p>Historia jest teraz pusta. Nie pokazujemy przykładowych ludzi ani wydarzeń jako prawdziwych danych.</p></div>`) : `<button class="history-card" data-route="history"><span class="history-date"><b>05</b>WRZ</span><span class="history-copy"><b>Krąg 03 · Kawiarnia Relaks</b><small>Mokotów · 5 osób · zakończone</small></span><i>›</i></button><button class="history-card" data-route="history"><span class="history-date"><b>29</b>SIE</span><span class="history-copy"><b>Krąg 02 · Bar Studio</b><small>Śródmieście · 4 osoby · zakończone</small></span><i>›</i></button>`;
   return `<section class="screen account-screen">
     <div class="home-head"><span class="logo">experience°</span><button class="round-button" data-action="settings" aria-label="Ustawienia">⚙</button></div>
     <div class="account-hero">${avatar({ tone: 'you', name: 'Aleks' }, 'account-avatar')}<div><p class="eyebrow">TWÓJ PROFIL</p><h1>Aleks</h1><span>Warszawa · ${state.meetingLanguage === 'en' ? 'English' : 'Polski'}</span></div></div>
     <button class="account-summary" data-route="membership"><div><small>PREMIUM</small><b>${paymentLabels[state.paymentState]}</b></div><span>59 PLN / miesiąc</span></button>
     <div class="account-section"><div class="section-heading"><div><p class="eyebrow">TWOJE USTAWIENIA</p><h2>Dobór i dostępność</h2></div><button data-route="profile">Edytuj</button></div><div class="profile-facts"><span><b>Miasto</b>Warszawa</span><span><b>Język</b>${state.meetingLanguage === 'en' ? 'English' : 'Polski'}</span><span><b>Terminy</b>Pon–czw + weekend</span></div></div>
-    <div class="account-section"><div class="section-heading"><div><p class="eyebrow">HISTORIA</p><h2>Poprzednie spotkania</h2></div><span>${state.accountEmpty ? '0' : '2'}</span></div>${history}</div>
+    <div class="account-section"><div class="section-heading"><div><p class="eyebrow">HISTORIA</p><h2>Poprzednie spotkania</h2></div><span>${(state.accountEmpty ? 0 : 2) + state.oneOff.historyCount()}</span></div>${history}${state.oneOff.history()}</div>
     <div class="account-section compact-section"><button class="settings-row" data-action="contacts"><span><b>Wzajemne kontakty</b><small>${state.accountEmpty ? 'Jeszcze nikogo' : '2 osoby'}</small></span><i>›</i></button><button class="settings-row" data-action="privacy"><span><b>Prywatność i weryfikacja</b><small>Weryfikacja opcjonalna</small></span><i>›</i></button><button class="settings-row" data-safety-context="account"><span><b>Bezpieczeństwo</b><small>Zgłoszenia, blokady i pomoc</small></span><i>›</i></button></div>
   </section>${nav('account')}`;
 }
@@ -834,7 +860,7 @@ function chat() {
   return `<section class="screen chat-screen">${topbar('', true)}<div class="chat-person">${avatar(person)}<div><h1>${person.name}</h1><span>Wzajemny kontakt w Experience</span></div><button data-block-person="${person.id}">Zablokuj</button></div><div class="chat-boundary"><span>◉</span><p>Numer telefonu i profile społecznościowe pozostają prywatne, dopóki sami ich nie udostępnicie.</p></div><div class="chat-messages"><p><span>Cześć! Dzięki za wczoraj 🙂</span></p><p class="mine"><span>Też dzięki. Może kawa w przyszłym tygodniu?</span></p></div><div class="chat-compose"><input aria-label="Wiadomość" placeholder="Napisz wiadomość"><button data-action="send-message" aria-label="Wyślij">↑</button></div></section>`;
 }
 
-const screens = { welcome, profile, membership, pulse, forming: circle, home, lunar, circle, plan, meeting, after, account, history: historyScreen, safety, report, chat };
+const screens = { welcome, profile, membership, pulse, forming: circle, home, lunar, circle, plan, oneoff, meeting, after, account, history: historyScreen, safety, report, chat };
 
 function applyDemoScenario(scenario) {
   state.demoScenario = scenario;
@@ -900,9 +926,11 @@ function notify(message) {
   toastTimer = setTimeout(() => toast.classList.remove('show'), 2300);
 }
 
+document.addEventListener('change', event => state.oneOff.handleChange(event));
 document.addEventListener('click', event => {
+  if (state.oneOff.handleClick(event)) return;
   const route = event.target.closest('[data-route]')?.dataset.route;
-  if (route) { go(route); return; }
+  if (route) { state.oneOff.exitHistory(); go(route); return; }
 
   const demo = event.target.closest('[data-demo]')?.dataset.demo;
   if (demo) { applyDemoScenario(demo); return; }
