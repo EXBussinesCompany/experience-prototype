@@ -4,16 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#11132c">
-  <title>Experience — Living Constellation</title>
-  <meta name="description" content="Interaktywny prototyp Experience: od codziennego impulsu do wzajemnej kontynuacji po spotkaniu.">
+  <title>Experience — prototypy spotkań</title>
+  <meta name="description" content="Prototypy Experience: jednorazowe spotkania i stały krąg.">
   <script>
-    const target = new URL('living-constellation-v1/screens/', window.location.href);
+    const params = new URLSearchParams(window.location.search);
+    const isCircleLink = ['screen', 'demo', 'stage', 'payment', 'attendance', 'result', 'decision', 'step'].some(key => params.has(key)) || params.get('prototype') === 'circle';
+    const target = new URL(isCircleLink ? 'living-constellation-v1/screens/' : 'one-off/', window.location.href);
     target.search = window.location.search;
     target.hash = window.location.hash;
     window.location.replace(target);
   </script>
 </head>
 <body>
-  <noscript><a href="living-constellation-v1/screens/">Otwórz prototyp Experience</a></noscript>
+  <noscript><a href="one-off/">Jednorazowe spotkania</a> · <a href="living-constellation-v1/screens/">Stały krąg</a></noscript>
 </body>
 </html>
